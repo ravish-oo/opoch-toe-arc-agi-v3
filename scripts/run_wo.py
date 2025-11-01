@@ -150,6 +150,106 @@ def run_wo01(data_dir: str, subset_file: str) -> list[dict]:
     return all_receipts
 
 
+def run_wo02(data_dir: str, subset_file: str) -> list[dict]:
+    """
+    WO-02: Test Shape S synthesis on tasks.
+
+    For each task:
+    1. Load all training pairs to collect (H,W) → (R',C')
+    2. Run synthesize_shape to get S function and ShapeRc
+    3. Apply S to test input to get (R,C)
+    4. Verify E1: proof on ALL trainings (equality check)
+    5. Collect receipts
+
+    Contract (docs/common_mistakes.md E1):
+    - Never change output shape without S proof
+    - Receipt must include verified_train_ids (ALL trainings)
+
+    Returns:
+        List of receipts (one per task)
+    """
+    from arc.op.shape import synthesize_shape, apply_shape
+    from arc.op.hash import hash_bytes
+
+    # Load task IDs
+    with open(subset_file) as f:
+        task_ids = [line.strip() for line in f if line.strip()]
+
+    all_receipts = []
+
+    for task_id in task_ids:
+        # Load task
+        task_path = os.path.join(data_dir, f"{task_id}.json")
+        task = load_task(task_path)
+
+        # Build train_pairs: [(train_id, (H,W), (R',C'))]
+        train_pairs = []
+        presented_inputs = []
+
+        for i, pair in enumerate(task["train"]):
+            train_id = f"{task_id}_train{i}"
+            X = np.array(pair["input"], dtype=np.int64)
+            Y = np.array(pair["output"], dtype=np.int64)
+            train_pairs.append((train_id, X.shape, Y.shape))
+            presented_inputs.append((train_id, X))
+
+        # Synthesize shape
+        S, shape_rc = synthesize_shape(train_pairs, presented_inputs)
+
+        # Apply to test input
+        test_input = np.array(task["test"][0]["input"], dtype=np.int64)
+        Ht, Wt = test_input.shape
+        Rt, Ct = apply_shape(S, Ht, Wt)
+
+        # Fill receipt placeholders
+        shape_rc.R = Rt
+        shape_rc.C = Ct
+        shape_rc.verified_train_ids = [tid for tid, _, _ in train_pairs]
+
+        # E1 VERIFICATION: Re-check all trainings (proof must hold)
+        for train_id, (H, W), (R_expected, C_expected) in train_pairs:
+            R_actual, C_actual = apply_shape(S, H, W)
+            if (R_actual, C_actual) != (R_expected, C_expected):
+                raise ValueError(
+                    f"Task {task_id}: E1 violation! Shape proof failed for {train_id}\n"
+                    f"  Expected: ({R_expected}, {C_expected})\n"
+                    f"  S({H},{W}): ({R_actual}, {C_actual})\n"
+                    f"  Branch: {shape_rc.branch_byte}, Params: {shape_rc.params_bytes_hex}"
+                )
+
+        # Build receipt for this task
+        env = env_fingerprint()
+
+        # Hash the shape function (via params_bytes for determinism)
+        shape_hash = hash_bytes(bytes.fromhex(shape_rc.params_bytes_hex))
+
+        stage_hashes = {
+            "wo": "WO-02",
+            "shape.branch": shape_rc.branch_byte,
+            "shape.params_hash": shape_hash,
+        }
+
+        run_rc = RunRc(
+            env=env,
+            stage_hashes=stage_hashes,
+            notes={
+                "task_id": task_id,
+                "shape": {
+                    "branch_byte": shape_rc.branch_byte,
+                    "params_hex": shape_rc.params_bytes_hex,
+                    "R": shape_rc.R,
+                    "C": shape_rc.C,
+                    "verified_count": len(shape_rc.verified_train_ids),
+                    "extras": shape_rc.extras,
+                },
+            },
+        )
+
+        all_receipts.append(aggregate(run_rc))
+
+    return all_receipts
+
+
 def main():
     """
     Run WO determinism harness.
@@ -181,6 +281,26 @@ def main():
         r1_list = run_wo01(args.data, args.subset)
         print(f"Running {args.wo} on tasks (run 2/2)...")
         r2_list = run_wo01(args.data, args.subset)
+
+        # Determinism check: compare lists
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Task {i}: receipts differ")
+                    if a.get("stage_hashes") != b.get("stage_hashes"):
+                        print(f"    Run 1 hashes: {a.get('stage_hashes')}")
+                        print(f"    Run 2 hashes: {b.get('stage_hashes')}")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
+
+    elif args.wo == "WO-02":
+        print(f"Running {args.wo} on tasks (run 1/2)...")
+        r1_list = run_wo02(args.data, args.subset)
+        print(f"Running {args.wo} on tasks (run 2/2)...")
+        r2_list = run_wo02(args.data, args.subset)
 
         # Determinism check: compare lists
         if r1_list != r2_list:

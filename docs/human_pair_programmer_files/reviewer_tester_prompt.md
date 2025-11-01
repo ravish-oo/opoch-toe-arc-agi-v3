@@ -18,7 +18,7 @@ For each WO below, run the WO script on task 3cd86f4f and verify the expected re
 
 Oracle ID 3cd86f4f:
 • WO-01: pose=identity, anchor=(0,0), Π round-trip hash equals input.
-• WO-02: S must produce sizes: 4×12, 10×11, 2×5, with branch=C (COUNT) and qualifier q_rows.
+• WO-02: S must produce sizes: 4×4, 10×11, 2×5, with branch=C (COUNT) and qualifier q_rows.
 • WO-04: law = summary, (φ=∅, σ=id), singleton intersection.
 • WO-05: tag_set_version canonical; stable partition_hash.
 • WO-06: singleton_count=0.

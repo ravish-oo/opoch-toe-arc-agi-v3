@@ -68,6 +68,26 @@ def env_fingerprint() -> EnvRc:
 
 
 @dataclass
+class ShapeRc:
+    """
+    Shape synthesis receipt.
+
+    Contract (02_determinism_addendum.md §10):
+    S: branch_byte, params_bytes_hex, R, C, verified_train_ids
+
+    Contract (02_determinism_addendum.md §1.1):
+    Branch codes: 'A' (AFFINE), 'P' (PERIOD_MULTIPLE), 'C' (COUNT_BASED), 'F' (FRAME)
+    Ordering key: (branch_byte, params_bytes, R, C)
+    """
+    branch_byte: str  # 'A', 'P', 'C', 'F'
+    params_bytes_hex: str  # deterministic serialization
+    R: int  # output height for test
+    C: int  # output width for test
+    verified_train_ids: list[str]  # must include ALL trainings
+    extras: dict[str, Any]  # axis_code for P, qual_id/qual_hash for C, etc.
+
+
+@dataclass
 class RunRc:
     """
     Root receipt container for a single task run.

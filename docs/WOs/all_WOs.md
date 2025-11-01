@@ -34,7 +34,7 @@
   **Red-team tests:** lex-close poses differing only after anchor — Π must resolve uniquely; forcing outputs into palette must be detected by receipts diff.
   **Gotchas:** never canonize outputs; identity fallback for unseen output colors.
 
-## WO-02 — Shape S synthesizer (BLOCKER)
+## WO-02 — Shape S synthesizer (BLOCKER) ✅ COMPLETED
 
 **Goal:** exact + least size law selection.
 **Delivers:**
@@ -210,7 +210,7 @@ exclude identity Δ,
 verify overlaps by pixel equality,
 record (method, modulus/root or verified=true) in receipts.
 
-COUNT-based S qualifiers
+COUNT-based S qualifiers 
 Add under WO-02 — Shape S as an optional sub-family that can be turned on when needed. Keep it trivial until a task actually requires it:
 Implement the parameter encoding (<4><alpha1><beta1><alpha2><beta2>) and “qual id” hashing exactly as frozen in the addendum.
 Only activate the COUNT candidate when a clear equality proof across all trainings exists.
