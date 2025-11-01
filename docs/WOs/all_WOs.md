@@ -19,7 +19,7 @@
   * Simulate endianness change or env tweak → harness must raise `NONDETERMINISTIC_ENV`.
     **Pitfalls to call out:** byte order; ZigZag for signed deltas; no floats anywhere.
 
-## WO-01 — Π presentation (palette, D4 lex, anchor) (BLOCKER)
+## WO-01 — Π presentation (palette, D4 lex, anchor) (BLOCKER) ✅ COMPLETED
 
 **Goal:** idempotent Π, U⁻¹ with round-trip receipts.
 **Delivers:**
@@ -201,4 +201,31 @@
 * **WO-09**: insert spurious second write; repaint hash must change and harness must fail.
 * **WO-10**: attempt “most frequent in test” color selection; receipts must expose invalid provenance.
 * **WO-11**: simulate env flip; pipeline reorder should change receipts and be caught.
+
+### WO notes and things to take care
+Where to place NTT details (Python)
+Put NTT/FFT method selection and receipts in WO-05 — Truth compiler (gfp). That WO owns per_color_overlap and must:
+implement integer FFT or NTT,
+exclude identity Δ,
+verify overlaps by pixel equality,
+record (method, modulus/root or verified=true) in receipts.
+
+COUNT-based S qualifiers
+Add under WO-02 — Shape S as an optional sub-family that can be turned on when needed. Keep it trivial until a task actually requires it:
+Implement the parameter encoding (<4><alpha1><beta1><alpha2><beta2>) and “qual id” hashing exactly as frozen in the addendum.
+Only activate the COUNT candidate when a clear equality proof across all trainings exists.
+
+from docs/common_mistakes.md
+WO-00: J1 (determinism), no timestamps in receipts.
+WO-01: F1, F2.
+WO-02: E1 (+ the period-axis tie clarification).
+WO-03: D2.
+WO-04: E2, A1, C2.
+WO-05: 0 fundamentals, D1, I1.
+WO-06: G2.
+WO-07: G1.
+WO-08: C1 (plus tie tuple receipts).
+WO-09: H1, H2.
+WO-10: A1, A2, B1, B2, C1, C2.
+WO-11: J1 (double-run determinism).
 
