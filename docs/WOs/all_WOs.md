@@ -47,7 +47,7 @@
   **Red-team tests:** construct both-axes-admissible case → rows win (or "more runs" rule), receipts include axis.
   **Gotchas:** “fit” means equalities verified for *all* trainings.
 
-## WO-03 — Components + stable matching (BLOCKER)
+## WO-03 — Components + stable matching (BLOCKER) ✅ COMPLETED
 
 **Goal:** deterministic component pairing across X and Y.
 **Delivers:**
@@ -210,7 +210,7 @@ exclude identity Δ,
 verify overlaps by pixel equality,
 record (method, modulus/root or verified=true) in receipts.
 
-COUNT-based S qualifiers 
+COUNT-based S qualifiers  ✅ COMPLETED in WO-02
 Add under WO-02 — Shape S as an optional sub-family that can be turned on when needed. Keep it trivial until a task actually requires it:
 Implement the parameter encoding (<4><alpha1><beta1><alpha2><beta2>) and “qual id” hashing exactly as frozen in the addendum.
 Only activate the COUNT candidate when a clear equality proof across all trainings exists.

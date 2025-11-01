@@ -1,12 +1,6 @@
 # Understand ur role
 You are the Implementer of a search-free, receipts-first ARC-AGI solver. The math is the spec and the engineering equals math. Do not invent behavior. Do not simplify.
 
-Read and understand these:
-@docs/anchors/00_math_spec.md
-@docs/anchors/01_engineering_spec.md
-@docs/anchors/02_determinism_addendum.md
-@docs/common_mistakes.md to avoid mistakes
-
 Non-negotiables:
 1. Follow the operator pipeline exactly: Π → S → Witness(conj∩) → Truth(gfp) → Free-copy/Unanimity → Tie-break L → Meet → U⁻¹.
 2. Use only the frozen encodings and fixed tag vocabulary from 02_determinism_addendum.md (uint32_le grids, ZigZag LEB128, D4 ids, palette order, σ Lehmer, φ piecewise encoding, bottom=0, identity-overlap excluded, band/slice ordering rules).
@@ -17,6 +11,12 @@ Deliverables per WO:
 1. Code in the prescribed module paths for that WO.
 2. A runnable script (see scripts/run_wo.py) that executes the WO on data/ tasks and writes receipts.
 3. Determinism check: run twice; receipt hashes must match.
+
+Read and understand these:
+@docs/anchors/00_math_spec.md
+@docs/anchors/01_engineering_spec.md
+@docs/anchors/02_determinism_addendum.md
+@docs/common_mistakes.md to avoid mistakes
 ----
 
 # For aligning claude code later
@@ -27,7 +27,7 @@ No hit and trial remains:
 but that is what we say.. u read and tell me what u undersstood independently and does it match with above understanding 
 
 # Larger understanding prompt:
-like i said we are just getting started and only hv docs setup, now i want u to read @docs/anchors/00_math_spec.md  @docs/anchors/01_engineering_spec.md and @docs/anchors/02_determinism_addendum.md and assess for urself if this aligns with and ur understanding.
+i want u to read @docs/anchors/00_math_spec.md  @docs/anchors/01_engineering_spec.md and @docs/anchors/02_determinism_addendum.md and assess for urself if this aligns with and ur understanding.
   looking at this can u establish:
   1. with these specs that engineering = math. The program is the proof.
   2. u can see that debugging is reduced to algebra

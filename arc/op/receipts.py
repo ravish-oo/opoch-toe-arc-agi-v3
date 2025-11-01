@@ -88,6 +88,25 @@ class ShapeRc:
 
 
 @dataclass
+class ComponentsRc:
+    """
+    Components extraction receipt.
+
+    Contract (02_determinism_addendum.md §3):
+    - connectivity = "4" (frozen by D2)
+    - per_color_counts: color → #components
+    - invariants: CompInv list in lex order
+
+    Note: CompInv details are in arc/op/components.py
+    This receipt stores the serialized invariant data.
+    """
+    connectivity: str  # "4" (frozen)
+    per_color_counts: dict[int, int]  # color → count
+    invariants: list[dict[str, Any]]  # serialized CompInv tuples
+    note: str | None = None
+
+
+@dataclass
 class RunRc:
     """
     Root receipt container for a single task run.

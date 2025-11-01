@@ -10,6 +10,7 @@ import json
 import numpy as np
 from arc.op.receipts import env_fingerprint, aggregate, RunRc
 from arc.io.load_data import load_task
+from arc.op.hash import hash_bytes
 
 
 def run_wo00() -> dict:
@@ -250,6 +251,113 @@ def run_wo02(data_dir: str, subset_file: str) -> list[dict]:
     return all_receipts
 
 
+def run_wo03(data_dir: str, subset_file: str) -> list[dict]:
+    """
+    WO-03: Test Components + stable matching on tasks.
+
+    For each task:
+    1. Load training pairs
+    2. Extract 4-connected components for X_i and Y_i
+    3. Run stable_match to get pairs and unmatched components
+    4. Verify D2: connectivity = "4" (frozen)
+    5. Collect receipts
+
+    Contract (02_determinism_addendum.md §3):
+    - connectivity = "4" always (D2 freeze)
+    - Invariants: (area, bbox_h, bbox_w, perim4, outline_hash, anchor_r, anchor_c)
+    - Stable matching by lex-sorted invariant equality
+
+    Returns:
+        List of receipts (one per training pair)
+    """
+    from arc.op.components import cc4_by_color, stable_match, CompInv
+    from dataclasses import asdict
+
+    # Load task IDs
+    with open(subset_file) as f:
+        task_ids = [line.strip() for line in f if line.strip()]
+
+    all_receipts = []
+
+    for task_id in task_ids:
+        # Load task
+        task_path = os.path.join(data_dir, f"{task_id}.json")
+        task = load_task(task_path)
+
+        # Process each training pair
+        for pair_idx, pair in enumerate(task["train"]):
+            train_id = f"{task_id}_train{pair_idx}"
+
+            # Extract grids
+            X = np.array(pair["input"], dtype=np.int64)
+            Y = np.array(pair["output"], dtype=np.int64)
+
+            # Extract components
+            X_masks, X_rc = cc4_by_color(X)
+            Y_masks, Y_rc = cc4_by_color(Y)
+
+            # D2 VERIFICATION: Connectivity must be 4
+            if X_rc.connectivity != "4" or Y_rc.connectivity != "4":
+                raise ValueError(
+                    f"Task {train_id}: D2 violation! Connectivity must be '4'.\\n"
+                    f"  X connectivity: {X_rc.connectivity}\\n"
+                    f"  Y connectivity: {Y_rc.connectivity}"
+                )
+
+            # Deserialize invariants for matching
+            X_invs = [CompInv(**inv_dict) for inv_dict in X_rc.invariants]
+            Y_invs = [CompInv(**inv_dict) for inv_dict in Y_rc.invariants]
+
+            # Stable match
+            pairs, match_rc = stable_match(X_invs, Y_invs)
+
+            # Build receipt for this training pair
+            env = env_fingerprint()
+
+            # Hash the components for determinism tracking
+            X_comp_hash = hash_bytes(json.dumps(X_rc.invariants, sort_keys=True).encode())
+            Y_comp_hash = hash_bytes(json.dumps(Y_rc.invariants, sort_keys=True).encode())
+            match_hash = hash_bytes(
+                json.dumps(
+                    {
+                        "pairs": match_rc.pairs,
+                        "left_only": match_rc.left_only,
+                        "right_only": match_rc.right_only,
+                    },
+                    sort_keys=True
+                ).encode()
+            )
+
+            stage_hashes = {
+                "wo": "WO-03",
+                "components.X_hash": X_comp_hash,
+                "components.Y_hash": Y_comp_hash,
+                "match.hash": match_hash,
+            }
+
+            run_rc = RunRc(
+                env=env,
+                stage_hashes=stage_hashes,
+                notes={
+                    "train_id": train_id,
+                    "components": {
+                        "X": asdict(X_rc),
+                        "Y": asdict(Y_rc),
+                    },
+                    "match": {
+                        "pairs": match_rc.pairs,
+                        "left_only": match_rc.left_only,
+                        "right_only": match_rc.right_only,
+                        "verified_pixelwise": match_rc.verified_pixelwise,
+                    },
+                },
+            )
+
+            all_receipts.append(aggregate(run_rc))
+
+    return all_receipts
+
+
 def main():
     """
     Run WO determinism harness.
@@ -301,6 +409,26 @@ def main():
         r1_list = run_wo02(args.data, args.subset)
         print(f"Running {args.wo} on tasks (run 2/2)...")
         r2_list = run_wo02(args.data, args.subset)
+
+        # Determinism check: compare lists
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Task {i}: receipts differ")
+                    if a.get("stage_hashes") != b.get("stage_hashes"):
+                        print(f"    Run 1 hashes: {a.get('stage_hashes')}")
+                        print(f"    Run 2 hashes: {b.get('stage_hashes')}")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
+
+    elif args.wo == "WO-03":
+        print(f"Running {args.wo} on tasks (run 1/2)...")
+        r1_list = run_wo03(args.data, args.subset)
+        print(f"Running {args.wo} on tasks (run 2/2)...")
+        r2_list = run_wo03(args.data, args.subset)
 
         # Determinism check: compare lists
         if r1_list != r2_list:
