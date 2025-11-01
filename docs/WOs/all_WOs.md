@@ -1,6 +1,6 @@
 # High-level Work Orders (bottoms-up, receipts-first)
 
-## WO-00 — Repo scaffold + receipts kernel (BLOCKER)
+## WO-00 — Repo scaffold + receipts kernel (BLOCKER) ✅ COMPLETED
 
 **Goal:** one place for canonical encodings, hashing, and receipts plumbing.
 **Delivers:**

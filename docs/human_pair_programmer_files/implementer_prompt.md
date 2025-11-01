@@ -25,8 +25,16 @@ No hit and trial remains:
 ---
 but that is what we say.. u read and tell me what u undersstood independently and does it match with above understanding 
 
+# Larger understanding prompt:
+like i said we are just getting started and only hv docs setup, now i want u to read @docs/anchors/01_engineering_spec.md and
+  @docs/anchors/02_determinism_addendum.md and assess for urself if this aligns with @docs/anchors/00_math_spec.md and ur understanding.
+  looking at this can u establish:
+  1. with these specs that engineering = math. The program is the proof.
+  2. u can see that debugging is reduced to algebra
+  3. no room for hit and trials
+
 # wo prompt
-here is the WO. do refer to @docs/repo_structure_guidelines.md to knw the folder structure.
+here is the WO. do refer to @docs/anchors/03_repo_structure.md to knw the folder structure.
   [Pasted text #1 +161 lines]
   ---
   pls read and tell me that u hv understood/confirmed/verified below:
@@ -36,3 +44,25 @@ here is the WO. do refer to @docs/repo_structure_guidelines.md to knw the folder
   4. no room for hit and trials
 
 once u confirm above, we can start coding!
+
+
+# wo notes
+Where to place NTT details (Python)
+
+Put NTT/FFT method selection and receipts in WO-05 — Truth compiler (gfp). That WO owns per_color_overlap and must:
+
+implement integer FFT or NTT,
+
+exclude identity Δ,
+
+verify overlaps by pixel equality,
+
+record (method, modulus/root or verified=true) in receipts.
+
+COUNT-based S qualifiers
+
+Add under WO-02 — Shape S as an optional sub-family that can be turned on when needed. Keep it trivial until a task actually requires it:
+
+Implement the parameter encoding (<4><alpha1><beta1><alpha2><beta2>) and “qual id” hashing exactly as frozen in the addendum.
+
+Only activate the COUNT candidate when a clear equality proof across all trainings exists.

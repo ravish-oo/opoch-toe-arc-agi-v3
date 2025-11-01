@@ -208,3 +208,7 @@ __marimo__/
 
 data/
 reviews/
+WO_completions/
+
+# out/ directory - track the directory but ignore all contents
+out/*
