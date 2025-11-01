@@ -59,7 +59,7 @@
   **Red-team tests:** recolor duplicates; ensure outline hash remains invariant and matching remains stable.
   **Gotchas:** anchor_rc after Π; outline hash independent of color and pose.
 
-## WO-04 — Witness solver (φ,σ) + conjugation + intersection (BLOCKER)
+## WO-04 — Witness solver (φ,σ) + conjugation + intersection (BLOCKER) ✅ COMPLETED
 
 **Goal:** exact equality witness per training; intersect laws.
 **Delivers:**

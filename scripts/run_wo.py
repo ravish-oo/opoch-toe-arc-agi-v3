@@ -358,6 +358,140 @@ def run_wo03(data_dir: str, subset_file: str) -> list[dict]:
     return all_receipts
 
 
+def run_wo04(data_dir: str, subset_file: str) -> list[dict]:
+    """
+    WO-04: Test Witness solver (φ,σ) + conjugation + intersection.
+
+    For each task:
+    1. Load training pairs
+    2. Extract components with WO-03
+    3. Solve witness per training pair (geometric or summary)
+    4. Conjugate to test Π frame
+    5. Intersect across trainings
+    6. Verify E2: bbox equality for geometric witnesses
+    7. Verify A1/C2: candidate sets and decision rules for summary witnesses
+    8. Collect receipts
+
+    Contract:
+    - E2: Every φ piece must prove bbox equality (exact pixelwise)
+    - A1: Candidate sets part of law (record foreground/background colors, counts)
+    - C2: Decision rule frozen string
+
+    Returns:
+        List of receipts (one per task)
+    """
+    from arc.op.components import cc4_by_color
+    from arc.op.witness import (
+        solve_witness_for_pair,
+        conjugate_to_test,
+        intersect_witnesses
+    )
+    from dataclasses import asdict
+
+    # Load task IDs
+    with open(subset_file) as f:
+        task_ids = [line.strip() for line in f if line.strip()]
+
+    all_receipts = []
+
+    for task_id in task_ids:
+        # Load task
+        task_path = os.path.join(data_dir, f"{task_id}.json")
+        task = load_task(task_path)
+
+        # Per-task witness solving
+        train_witnesses = []
+        conjugated_witnesses = []
+
+        for pair_idx, pair in enumerate(task["train"]):
+            train_id = f"{task_id}_train{pair_idx}"
+
+            # Extract grids
+            X = np.array(pair["input"], dtype=np.int64)
+            Y = np.array(pair["output"], dtype=np.int64)
+
+            # Extract components (WO-03)
+            X_masks, X_rc = cc4_by_color(X)
+            Y_masks, Y_rc = cc4_by_color(Y)
+
+            # Solve witness (φ, σ)
+            phi_pieces, sigma, witness_rc = solve_witness_for_pair(X, Y, X_rc, Y_rc)
+
+            # E2 VERIFICATION: For geometric, check bbox_equal
+            if witness_rc.kind == "geometric":
+                if not all(witness_rc.phi.bbox_equal):
+                    raise ValueError(
+                        f"Task {train_id}: E2 violation! Geometric witness has failed bbox equality.\\n"
+                        f"  bbox_equal: {witness_rc.phi.bbox_equal}"
+                    )
+
+            # A1/C2 VERIFICATION: For summary, check receipts present
+            if witness_rc.kind == "summary":
+                if witness_rc.foreground_colors is None:
+                    raise ValueError(
+                        f"Task {train_id}: A1 violation! Summary witness missing foreground_colors"
+                    )
+                if witness_rc.background_colors is None:
+                    raise ValueError(
+                        f"Task {train_id}: A1 violation! Summary witness missing background_colors"
+                    )
+                if witness_rc.decision_rule is None:
+                    raise ValueError(
+                        f"Task {train_id}: C2 violation! Summary witness missing decision_rule"
+                    )
+                if witness_rc.per_color_counts is None:
+                    raise ValueError(
+                        f"Task {train_id}: A1 violation! Summary witness missing per_color_counts"
+                    )
+
+            train_witnesses.append((phi_pieces, sigma, witness_rc))
+
+            # Conjugate to test frame (simplified for WO-04)
+            phi_star, conj_rc = conjugate_to_test(phi_pieces, sigma)
+            conjugated_witnesses.append((phi_star, sigma, conj_rc))
+
+        # Intersection across trainings
+        conj_list = [(phi_star, sigma) for phi_star, sigma, _ in conjugated_witnesses]
+        phi_intersect, sigma_intersect, intersection_rc = intersect_witnesses(conj_list)
+
+        # Build receipt for this task
+        env = env_fingerprint()
+
+        # Hash witnesses for determinism
+        witnesses_hash = hash_bytes(
+            json.dumps(
+                [asdict(w_rc) for _, _, w_rc in train_witnesses],
+                sort_keys=True
+            ).encode()
+        )
+        intersection_hash = hash_bytes(
+            json.dumps(asdict(intersection_rc), sort_keys=True).encode()
+        )
+
+        stage_hashes = {
+            "wo": "WO-04",
+            "witnesses.hash": witnesses_hash,
+            "intersection.hash": intersection_hash,
+        }
+
+        run_rc = RunRc(
+            env=env,
+            stage_hashes=stage_hashes,
+            notes={
+                "task_id": task_id,
+                "witnesses": {
+                    "train": [asdict(w_rc) for _, _, w_rc in train_witnesses],
+                    "conjugated": [asdict(c_rc) for _, _, c_rc in conjugated_witnesses],
+                },
+                "intersection": asdict(intersection_rc),
+            },
+        )
+
+        all_receipts.append(aggregate(run_rc))
+
+    return all_receipts
+
+
 def main():
     """
     Run WO determinism harness.
@@ -429,6 +563,26 @@ def main():
         r1_list = run_wo03(args.data, args.subset)
         print(f"Running {args.wo} on tasks (run 2/2)...")
         r2_list = run_wo03(args.data, args.subset)
+
+        # Determinism check: compare lists
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Task {i}: receipts differ")
+                    if a.get("stage_hashes") != b.get("stage_hashes"):
+                        print(f"    Run 1 hashes: {a.get('stage_hashes')}")
+                        print(f"    Run 2 hashes: {b.get('stage_hashes')}")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
+
+    elif args.wo == "WO-04":
+        print(f"Running {args.wo} on tasks (run 1/2)...")
+        r1_list = run_wo04(args.data, args.subset)
+        print(f"Running {args.wo} on tasks (run 2/2)...")
+        r2_list = run_wo04(args.data, args.subset)
 
         # Determinism check: compare lists
         if r1_list != r2_list:
