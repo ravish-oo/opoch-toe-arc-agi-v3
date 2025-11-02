@@ -1,0 +1,6011 @@
+{
+  "contradictory": {
+    "3cd86f4f": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "c0cbafe90334d04abccf8520550add6b68d43d8e254899af817565e7eb455ffc",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "3cd86f4f",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  4,
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                4,
+                5,
+                7,
+                9
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 12,
+                "4": 6,
+                "5": 6,
+                "7": 16,
+                "9": 8
+              }
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  4,
+                  6,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                4,
+                6,
+                7,
+                8
+              ],
+              "background_colors": [
+                0,
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 30,
+                "1": 5,
+                "4": 10,
+                "6": 6,
+                "7": 3,
+                "8": 12
+              }
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true
+                ],
+                "domain_pixels": 3
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  5,
+                  6,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  4,
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  4,
+                  6,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  5,
+                  6,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "025d127b": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "7546783e35701e2fa96c9599bb967418e0e947d18f43146176a4a71a528b4cfd",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "025d127b",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 3
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                2,
+                6
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 106,
+                "2": 8,
+                "6": 12
+              }
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "0d87d2a6": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "0c6f480a2c942463adb8c559c1c6c0d4ef0e616bbdb6051ea11e256301f6efce",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "0d87d2a6",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 14
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 3
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                2
+              ],
+              "background_colors": [
+                0,
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 91,
+                "1": 62,
+                "2": 29
+              }
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "22233c11": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "5ebf29199bcb118ccd8d92eb48d192fba4c000a38df16637e0e7b0d6bd3f766b",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "22233c11",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true
+                ],
+                "domain_pixels": 8
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                3,
+                8
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 92,
+                "3": 4,
+                "8": 4
+              }
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                3,
+                8
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 96,
+                "3": 2,
+                "8": 2
+              }
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "3eda0437": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "0c5178f6b070fd3b3a4e364e424b0491828488bc6e9a0be17413981b30b094b2",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "3eda0437",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                6
+              ],
+              "background_colors": [
+                0,
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 16,
+                "1": 14,
+                "6": 10
+              }
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                6
+              ],
+              "background_colors": [
+                0,
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 29,
+                "1": 45,
+                "6": 6
+              }
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                6
+              ],
+              "background_colors": [
+                0,
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 40,
+                "1": 31,
+                "6": 9
+              }
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 13,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 14,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 17,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 9,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 12,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 16,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 15,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 10,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 18,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 11,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 19,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 71
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  5
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 13,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 14,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 17,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 9,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 12,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 16,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 15,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 10,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 18,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 11,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 19,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  5
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "ac3e2b04": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "aeb97b578eca4119fab4ef9e94e67bb640f0f956257a0cc186c1fc1859cf2ce7",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "ac3e2b04",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 18
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                2,
+                3
+              ],
+              "background_colors": [
+                0,
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 114,
+                "1": 28,
+                "2": 22,
+                "3": 16
+              }
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                2,
+                3
+              ],
+              "background_colors": [
+                0,
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 132,
+                "1": 46,
+                "2": 30,
+                "3": 16
+              }
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 23
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "c59eb873": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "a74baf62d036d78c66bcf8174a4d01b08d1bea4abb5419243d23b8f9f05f041b",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "c59eb873",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                2,
+                3
+              ],
+              "background_colors": [
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "1": 8,
+                "2": 4,
+                "3": 4
+              }
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2,
+                  5
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                2,
+                5
+              ],
+              "background_colors": [
+                0,
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 8,
+                "1": 4,
+                "2": 4,
+                "5": 20
+              }
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true
+                ],
+                "domain_pixels": 1
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  5
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2,
+                  5
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  5
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "c6141b15": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "86c388ec1843555417ae648bd05a5adb8feac45e7051a093fd309606b188d5cb",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "c6141b15",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 5
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  2,
+                  7
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true
+                ],
+                "domain_pixels": 2
+              },
+              "sigma": {
+                "domain_colors": [
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  4,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                4,
+                7,
+                8
+              ],
+              "background_colors": [],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "4": 16,
+                "7": 230,
+                "8": 10
+              }
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  2,
+                  7
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  4,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "cb227835": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "05feb7a119eda754bfd4881797cac449433e24ac42848243707d349c6068c30b",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "cb227835",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                3,
+                8
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 150,
+                "3": 16,
+                "8": 2
+              }
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                3,
+                8
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 151,
+                "3": 16,
+                "8": 2
+              }
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true
+                ],
+                "domain_pixels": 2
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "c87289bb": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "dccdbc2ed9418de5b2e85945e716d561cc08f9cc84ea577664992192e246f710",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "c87289bb",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                2,
+                8
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 72,
+                "2": 5,
+                "8": 43
+              }
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                2,
+                8
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 55,
+                "2": 3,
+                "8": 62
+              }
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                2,
+                8
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 62,
+                "2": 5,
+                "8": 53
+              }
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true
+                ],
+                "domain_pixels": 3
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "25e02866": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "cdb2f67d39042bdafd522247aa771d5429935af5f2766e25009e5bad8fc511e2",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "25e02866",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  2,
+                  3,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                1,
+                2,
+                3,
+                6
+              ],
+              "background_colors": [
+                1
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "1": 1,
+                "2": 0,
+                "3": 12,
+                "6": 3
+              }
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 8
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  2,
+                  3,
+                  6
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "58e15b12": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "970c2c52fea571856ddcb4724e3e443a39fe6a53cdaf7080ecd83f194190a1f0",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "58e15b12",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 10
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  6,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                3,
+                6,
+                8
+              ],
+              "background_colors": [
+                0
+              ],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "0": 310,
+                "3": 36,
+                "6": 2,
+                "8": 43
+              }
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 10
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  6,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  3,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "2f767503": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "38e649dd5253e22e6d79ebf89297f2df2923cd83e1ff9a0c044d5929fe01a471",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "2f767503",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  4,
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                4,
+                5,
+                7,
+                9
+              ],
+              "background_colors": [],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "4": 16,
+                "5": 3,
+                "7": 80,
+                "9": 1
+              }
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 12,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 13,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 14,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 9,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 10,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 11,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 18,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 19,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 17,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 16,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 30
+              },
+              "sigma": {
+                "domain_colors": [
+                  4,
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 11,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 10,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 15
+              },
+              "sigma": {
+                "domain_colors": [
+                  4,
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  4,
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 12,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 13,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 14,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 9,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 10,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 11,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 18,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 19,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 17,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 16,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  4,
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 11,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 10,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  4,
+                  5,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    },
+    "e4941b18": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "d0f99bb0ddfbb4661caf54abef9ede077da6d4d5a01f4c632ea4984e55f29621",
+        "intersection.hash": "7206e24709cfa1d8d134a6623adf0c97106dd3696c3012fbdbe74aa2a053a7b3"
+      },
+      "notes": {
+        "task_id": "e4941b18",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 26
+              },
+              "sigma": {
+                "domain_colors": [
+                  2,
+                  5,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 17
+              },
+              "sigma": {
+                "domain_colors": [
+                  2,
+                  5,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "summary",
+              "phi": null,
+              "sigma": {
+                "domain_colors": [
+                  2,
+                  5,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": [
+                2,
+                5,
+                7,
+                8
+              ],
+              "background_colors": [],
+              "decision_rule": "strict_majority_foreground_fallback_0",
+              "per_color_counts": {
+                "2": 1,
+                "5": 54,
+                "7": 65,
+                "8": 1
+              }
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  2,
+                  5,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  2,
+                  5,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": null,
+              "sigma": {
+                "domain_colors": [
+                  2,
+                  5,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "contradictory",
+          "admissible_count": 0
+        }
+      }
+    }
+  },
+  "underdetermined": {
+    "4df5b0ae": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "44e03427e88ef6861f54ff3888cb2f3eaac3b9ac92178cecfe6d61c07dd099cb",
+        "intersection.hash": "dbbd0a091c65840f92c331594c694589eaf8cebeb89cd5b333e07e3ba06fae50"
+      },
+      "notes": {
+        "task_id": "4df5b0ae",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 10
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  5,
+                  6,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 23
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  5,
+                  7,
+                  8,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 12
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  3,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  5,
+                  6,
+                  7,
+                  8
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  5,
+                  7,
+                  8,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  1,
+                  3,
+                  7,
+                  9
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "underdetermined",
+          "admissible_count": 2
+        }
+      }
+    },
+    "b27ca6d3": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "dd416a10ee68cefbbc43af867517398d3d0fc03d65c0e7e6db772a2b058e7aa3",
+        "intersection.hash": "dbbd0a091c65840f92c331594c694589eaf8cebeb89cd5b333e07e3ba06fae50"
+      },
+      "notes": {
+        "task_id": "b27ca6d3",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 11,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 12,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 13,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 9,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 10,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 17
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 10
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 11,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 12,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 13,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 9,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 10,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 8,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "underdetermined",
+          "admissible_count": 2
+        }
+      }
+    },
+    "5168d44c": {
+      "env": {
+        "platform": "macOS-15.3-arm64-arm-64bit",
+        "endian": "little",
+        "py_version": "3.12.11",
+        "blake3_version": "0.4.1",
+        "compiler_version": "Clang 18.1.8 ",
+        "build_flags_hash": "0b0b694acec9f0d4d124a3b5bbb85e121573f51e36b97704d4b60b9f8fd47f6a"
+      },
+      "stage_hashes": {
+        "wo": "WO-04",
+        "witnesses.hash": "bf3f0b48d70dda1738c677710713c9c3b857f099e9018c12467dc285c5f94827",
+        "intersection.hash": "dbbd0a091c65840f92c331594c694589eaf8cebeb89cd5b333e07e3ba06fae50"
+      },
+      "notes": {
+        "task_id": "5168d44c",
+        "witnesses": {
+          "train": [
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 15
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 14
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            },
+            {
+              "kind": "geometric",
+              "phi": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 6,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 49
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              },
+              "foreground_colors": null,
+              "background_colors": null,
+              "decision_rule": null,
+              "per_color_counts": null
+            }
+          ],
+          "conjugated": [
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 7,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 6,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            },
+            {
+              "phi_star": {
+                "pieces": [
+                  {
+                    "comp_id": 0,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 1,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 2,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 3,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 5,
+                    "pose_id": 6,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  },
+                  {
+                    "comp_id": 4,
+                    "pose_id": 0,
+                    "dr": 0,
+                    "dc": 0,
+                    "r_per": 1,
+                    "c_per": 1,
+                    "r_res": 0,
+                    "c_res": 0
+                  }
+                ],
+                "bbox_equal": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "domain_pixels": 0
+              },
+              "sigma": {
+                "domain_colors": [
+                  0,
+                  2,
+                  3
+                ],
+                "lehmer": [],
+                "moved_count": 0
+              }
+            }
+          ]
+        },
+        "intersection": {
+          "status": "underdetermined",
+          "admissible_count": 2
+        }
+      }
+    }
+  }
+}
