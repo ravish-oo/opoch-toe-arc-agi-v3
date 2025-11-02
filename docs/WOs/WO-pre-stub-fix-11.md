@@ -137,7 +137,7 @@ def apply_markers_grid(test_Xt, truth_test, fit_rc: MarkersFitRc,
 
 ---
 
-# WO-10E — **Slice-Stack Engine** (MAJOR)
+# WO-10E — **Slice-Stack Engine** (MAJOR) ✅ COMPLETED
 
 **Intent**: Reconstruct outputs that are **concatenations of learned column (or row) slices**—i.e., an ordered dictionary of “slices” applied left→right or top→bottom (common in e.g., “barcodes” / stripe tasks).
 

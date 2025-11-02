@@ -21,7 +21,7 @@ import sys
 import platform
 from blake3 import blake3
 
-from arc.op import pi, shape, truth, witness, copy, unanimity, meet, families, components, tiebreak
+from arc.op import pi, shape, truth, witness, copy, unanimity, meet, families, components, tiebreak, border_scalar, pooled_blocks, markers_grid, slice_stack, kronecker
 from arc.op.receipts import ShapeRc
 from arc.op.hash import hash_bytes
 
@@ -222,10 +222,266 @@ def solve_task(
     # For WO-11 MVP, we'll try engines first, then fall back to witness
 
     # Try engines in frozen order
-    engine_names = ["column_dict", "macro_tiling"]  # Only implemented engines
+    engine_names = ["border_scalar", "pooled_blocks", "markers_grid", "slice_stack", "kronecker", "column_dict", "macro_tiling"]  # Implemented engines
 
     for engine_name in engine_names:
-        if engine_name == "column_dict":
+        if engine_name == "border_scalar":
+            # Fit border_scalar engine
+            train_pairs_for_fit = [(train_ids[i], Xt, Yt) for i, (Xt, Yt) in enumerate(zip(Xt_list, Yt_list))]
+            ok, fit_rc = border_scalar.fit_border_scalar(train_pairs_for_fit)
+
+            if ok:
+                # Apply to test
+                Yt_border, apply_rc = border_scalar.apply_border_scalar(
+                    Xstar_t,
+                    fit_rc,
+                    expected_shape=(R_star, C_star) if not shape_contradictory else None
+                )
+
+                # Engine succeeded
+                law_layer_values = Yt_border
+                law_layer_mask = None  # Full frame
+                law_status = "engine"
+                engine_used = engine_name
+
+                # Update shape if it was contradictory
+                if shape_contradictory:
+                    R_star, C_star = apply_rc["output_shape"]
+                    sections["shape"]["R_star"] = R_star
+                    sections["shape"]["C_star"] = C_star
+                    sections["shape"]["shape_source"] = "engine"
+
+                sections["engines"] = {
+                    "used": engine_name,
+                    "fit": {
+                        "border_color": fit_rc.border_color,
+                        "interior_color": fit_rc.interior_color,
+                        "rule": fit_rc.rule,
+                        "fit_verified_on": fit_rc.fit_verified_on,
+                        "hash": fit_rc.hash
+                    },
+                    "apply": apply_rc,
+                }
+                hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
+                break
+
+        elif engine_name == "pooled_blocks":
+            # Fit pooled_blocks engine
+            # Need truth for each training input
+            train_truth_list = []
+            for Xt in Xt_list:
+                truth_t = truth.compute_truth_partition(Xt)
+                if truth_t is None:
+                    train_truth_list = None
+                    break
+                train_truth_list.append(truth_t.receipt)
+
+            if train_truth_list is not None:
+                train_pairs_for_fit = [
+                    (train_ids[i], Xt, Yt, truth_rc)
+                    for i, (Xt, Yt, truth_rc) in enumerate(zip(Xt_list, Yt_list, train_truth_list))
+                ]
+                ok, fit_rc = pooled_blocks.fit_pooled_blocks(train_pairs_for_fit)
+
+                if ok:
+                    # Apply to test
+                    Yt_pooled, apply_rc = pooled_blocks.apply_pooled_blocks(
+                        Xstar_t,
+                        truth_partition.receipt,
+                        fit_rc,
+                        expected_shape=(R_star, C_star) if not shape_contradictory else None
+                    )
+
+                    if not apply_rc.get("shape_mismatch", False):
+                        # Engine succeeded
+                        law_layer_values = Yt_pooled
+                        law_layer_mask = None  # Full frame
+                        law_status = "engine"
+                        engine_used = engine_name
+
+                        # Update shape if it was contradictory
+                        if shape_contradictory:
+                            R_star, C_star = apply_rc["output_shape"]
+                            sections["shape"]["R_star"] = R_star
+                            sections["shape"]["C_star"] = C_star
+                            sections["shape"]["shape_source"] = "engine"
+
+                        sections["engines"] = {
+                            "used": engine_name,
+                            "fit": {
+                                "row_bands": fit_rc.row_bands,
+                                "col_bands": fit_rc.col_bands,
+                                "block_shape": list(fit_rc.block_shape),
+                                "pool_shape": list(fit_rc.pool_shape),
+                                "foreground_colors": fit_rc.foreground_colors,
+                                "decision_rule": fit_rc.decision_rule,
+                                "fit_verified_on": fit_rc.fit_verified_on,
+                                "hash": fit_rc.hash
+                            },
+                            "apply": apply_rc,
+                        }
+                        hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
+                        break
+
+        elif engine_name == "markers_grid":
+            # Fit markers_grid engine
+            # Need truth for each training input
+            train_truth_list = []
+            for Xt in Xt_list:
+                truth_t = truth.compute_truth_partition(Xt)
+                if truth_t is None:
+                    train_truth_list = None
+                    break
+                train_truth_list.append(truth_t.receipt)
+
+            if train_truth_list is not None:
+                train_pairs_for_fit = [
+                    (train_ids[i], Xt, Yt, truth_rc)
+                    for i, (Xt, Yt, truth_rc) in enumerate(zip(Xt_list, Yt_list, train_truth_list))
+                ]
+                ok, fit_rc = markers_grid.fit_markers_grid(train_pairs_for_fit)
+
+                if ok:
+                    # Apply to test
+                    Yt_markers, apply_rc = markers_grid.apply_markers_grid(
+                        Xstar_t,
+                        truth_partition.receipt,
+                        fit_rc,
+                        expected_shape=(R_star, C_star) if not shape_contradictory else None
+                    )
+
+                    if not apply_rc.get("error") and not apply_rc.get("shape_mismatch", False):
+                        # Engine succeeded
+                        law_layer_values = Yt_markers
+                        law_layer_mask = None  # Full frame
+                        law_status = "engine"
+                        engine_used = engine_name
+
+                        # Update shape if it was contradictory
+                        if shape_contradictory:
+                            R_star, C_star = apply_rc["output_shape"]
+                            sections["shape"]["R_star"] = R_star
+                            sections["shape"]["C_star"] = C_star
+                            sections["shape"]["shape_source"] = "engine"
+
+                        sections["engines"] = {
+                            "used": engine_name,
+                            "fit": {
+                                "marker_size": list(fit_rc.marker_size),
+                                "marker_color_set": fit_rc.marker_color_set,
+                                "grid_shape": list(fit_rc.grid_shape),
+                                "cell_rule": fit_rc.cell_rule,
+                                "fit_verified_on": fit_rc.fit_verified_on,
+                                "hash": fit_rc.hash
+                            },
+                            "apply": apply_rc,
+                        }
+                        hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
+                        break
+
+        elif engine_name == "slice_stack":
+            # Fit slice_stack engine
+            # Need truth for each training input
+            train_truth_list = []
+            for Xt in Xt_list:
+                truth_t = truth.compute_truth_partition(Xt)
+                if truth_t is None:
+                    train_truth_list = None
+                    break
+                train_truth_list.append(truth_t.receipt)
+
+            if train_truth_list is not None:
+                train_pairs_for_fit = [
+                    (train_ids[i], Xt, Yt, truth_rc)
+                    for i, (Xt, Yt, truth_rc) in enumerate(zip(Xt_list, Yt_list, train_truth_list))
+                ]
+                ok, fit_rc = slice_stack.fit_slice_stack(train_pairs_for_fit)
+
+                if ok:
+                    # Apply to test
+                    Yt_slices, apply_rc = slice_stack.apply_slice_stack(
+                        Xstar_t,
+                        truth_partition.receipt,
+                        fit_rc,
+                        expected_shape=(R_star, C_star) if not shape_contradictory else None
+                    )
+
+                    if not apply_rc.get("error") and not apply_rc.get("shape_mismatch", False):
+                        # Engine succeeded
+                        law_layer_values = Yt_slices
+                        law_layer_mask = None  # Full frame
+                        law_status = "engine"
+                        engine_used = engine_name
+
+                        # Update shape if it was contradictory
+                        if shape_contradictory:
+                            R_star, C_star = apply_rc["output_shape"]
+                            sections["shape"]["R_star"] = R_star
+                            sections["shape"]["C_star"] = C_star
+                            sections["shape"]["shape_source"] = "engine"
+
+                        sections["engines"] = {
+                            "used": engine_name,
+                            "fit": {
+                                "axis": fit_rc.axis,
+                                "slice_height": fit_rc.slice_height,
+                                "slice_width": fit_rc.slice_width,
+                                "dict_size": len(fit_rc.dict),
+                                "decision_rule": fit_rc.decision_rule,
+                                "fit_verified_on": fit_rc.fit_verified_on,
+                                "hash": fit_rc.hash
+                            },
+                            "apply": apply_rc,
+                        }
+                        hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
+                        break
+
+        elif engine_name == "kronecker":
+            # Fit kronecker engine
+            # Kronecker doesn't need truth, just trainings
+            train_pairs_for_fit = [
+                (train_ids[i], Xt, Yt, None)
+                for i, (Xt, Yt) in enumerate(zip(Xt_list, Yt_list))
+            ]
+            ok, fit_rc = kronecker.fit_kronecker(train_pairs_for_fit)
+
+            if ok:
+                # Apply to test
+                Yt_kronecker, apply_rc = kronecker.apply_kronecker(
+                    Xstar_t,
+                    None,
+                    fit_rc,
+                    expected_shape=(R_star, C_star) if not shape_contradictory else None
+                )
+
+                if not apply_rc.get("error"):
+                    # Engine succeeded
+                    law_layer_values = Yt_kronecker
+                    law_layer_mask = None  # Full frame
+                    law_status = "engine"
+                    engine_used = engine_name
+
+                    # Update shape if it was contradictory
+                    if shape_contradictory:
+                        R_star, C_star = apply_rc["output_shape"]
+                        sections["shape"]["R_star"] = R_star
+                        sections["shape"]["C_star"] = C_star
+                        sections["shape"]["shape_source"] = "engine"
+
+                    sections["engines"] = {
+                        "used": engine_name,
+                        "fit": {
+                            "tile_shape": list(fit_rc.tile_shape),
+                            "reps": {k: list(v) for k, v in fit_rc.reps.items()},
+                            "fit_verified_on": fit_rc.fit_verified_on,
+                            "hash": fit_rc.hash
+                        },
+                        "apply": apply_rc,
+                    }
+                    hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
+                    break
+
+        elif engine_name == "column_dict":
             # Fit column_dict engine
             fit_rc = families.fit_column_dict(Xt_list, Yt_list)
 
