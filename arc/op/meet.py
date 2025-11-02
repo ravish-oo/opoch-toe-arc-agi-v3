@@ -399,7 +399,8 @@ def select_from_domains(
                         if _test_bit(D[r, c], copy_idx):
                             selected_color = copy_color
 
-            if selected_color is None:
+            # Path 2 (repaint): Law - must match first pass scope check (CMR-H.1)
+            if selected_color is None and S_law is not None and S_law[r, c] == 1:
                 admitted = []
                 for color_idx in range(len(C)):
                     if _test_bit(D[r, c], color_idx):
