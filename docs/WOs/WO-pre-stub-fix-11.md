@@ -6,7 +6,7 @@
 
 ---
 
-# WO-10B — **Border-Scalar Engine** (MAJOR)
+# WO-10B — **Border-Scalar Engine** (MAJOR) 
 
 **Intent**: Reconstruct small outputs that are **constant border/interior fills** derived from **largest 4-CC border color** and **minimal interior 4-CC color**, as per archetype (B-a).
 **Fit** is input-only + output check; **Apply** paints small frame/interior with verified colors.
