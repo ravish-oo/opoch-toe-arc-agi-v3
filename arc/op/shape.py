@@ -25,6 +25,9 @@ from .receipts import ShapeRc
 # Type alias for shape function S(H,W) -> (R,C)
 SFn = Callable[[int, int], tuple[int, int]]
 
+# Rational AFFINE max denominator (FROZEN per 02_determinism_addendum.md §1.1.1)
+MAX_DENOMINATOR_AFFINE_RATIONAL = 10
+
 
 def _hash_ascii(s: str) -> str:
     """Hash ASCII string with BLAKE3."""
@@ -101,59 +104,83 @@ def _solve_linear_2var(samples: list[tuple[str, int, int]]) -> tuple[int, int] |
     """
     Solve y = a*x + b from samples.
 
-    Contract: exact equality (no regression, no thresholds)
+    Contract (WO-02 integer AFFINE fix):
+    Uses ALL pair differences to prove unique integer a exists.
+    Not just first two points - verifies all (i,j) pairs have same slope.
 
     Args:
         samples: [(id, x, y), ...]
 
     Returns:
-        (a, b) if exact solution exists, None otherwise
+        (a, b) if exact integer solution exists, None otherwise
     """
-    # Collect unique x values
-    vals: dict[int, set[int]] = {}
-    for _, x, y in samples:
-        vals.setdefault(x, set()).add(y)
+    # Extract x and y values
+    xs = [x for _, x, _ in samples]
+    ys = [y for _, _, y in samples]
 
-    xs = sorted(vals.keys())
+    # Check for duplicate x with different y (contradiction)
+    x_to_ys: dict[int, set[int]] = {}
+    for x, y in zip(xs, ys):
+        x_to_ys.setdefault(x, set()).add(y)
 
-    # Single x value: underdetermined, use constant (a=0)
-    if len(xs) == 1:
-        x = xs[0]
-        ys = vals[x]
-        if len(ys) != 1:
-            return None  # contradiction: same x, different y
-        y = next(iter(ys))
-        # a=0, b=y (constant function)
-        a, b = 0, y
-    else:
-        # At least 2 distinct x values: solve 2-point line
-        x1, x2 = xs[0], xs[1]
-        y1_set = vals[x1]
-        y2_set = vals[x2]
+    for x, y_set in x_to_ys.items():
+        if len(y_set) > 1:
+            return None  # Same x, different y → contradiction
 
-        if len(y1_set) != 1 or len(y2_set) != 1:
-            return None  # contradiction
+    # If only one unique x: constant function (a=0, b=y)
+    unique_xs = set(xs)
+    if len(unique_xs) == 1:
+        # All x same → a=0, b=y (if all y same)
+        unique_ys = set(ys)
+        if len(unique_ys) != 1:
+            return None  # Contradiction
+        return 0, ys[0]
 
-        y1 = next(iter(y1_set))
-        y2 = next(iter(y2_set))
+    # Find integer a from ALL pair differences
+    # For all i,j: (y_i - y_j) must equal a·(x_i - x_j)
+    # Thus a must be same for all pairs with distinct x
+    a_val = None
+    n = len(samples)
 
-        # Solve: y = a*x + b
-        if x2 - x1 == 0:
-            return None  # shouldn't happen (x1 != x2)
+    for i in range(n):
+        for j in range(i + 1, n):
+            dx = xs[i] - xs[j]
+            dy = ys[i] - ys[j]
 
-        a = (y2 - y1) // (x2 - x1)
-        b = y1 - a * x1
+            if dx == 0:
+                # Same x: already checked for contradiction above
+                if dy != 0:
+                    return None  # Safety check
+                continue
 
-        # Verify it's exact (not just best-fit)
-        if a * x1 + b != y1 or a * x2 + b != y2:
-            return None  # integer division doesn't give exact solution
+            # Check if dy/dx is integer
+            if dy % dx != 0:
+                return None  # Not integer slope
 
-    # Verify all samples
-    for _, x, y in samples:
-        if a * x + b != y:
-            return None
+            candidate_a = dy // dx
 
-    return a, b
+            if a_val is None:
+                a_val = candidate_a
+            elif a_val != candidate_a:
+                return None  # Different pairs give different a → no solution
+
+    # If all pairs had dx=0 (shouldn't happen given len(unique_xs)>1), fallback
+    if a_val is None:
+        a_val = 0
+
+    # Compute b from each sample: b = y - a·x (must be constant)
+    b_vals = set(y - a_val * x for x, y in zip(xs, ys))
+    if len(b_vals) != 1:
+        return None  # Different samples give different b
+
+    b_val = next(iter(b_vals))
+
+    # Final verification: all samples must satisfy y = a·x + b
+    for x, y in zip(xs, ys):
+        if a_val * x + b_val != y:
+            return None  # Safety check
+
+    return a_val, b_val
 
 
 def _fit_affine(pairs: list[tuple[str, tuple[int, int], tuple[int, int]]]) -> tuple[SFn, bytes, dict] | None:
@@ -192,6 +219,155 @@ def _fit_affine(pairs: list[tuple[str, tuple[int, int], tuple[int, int]]]) -> tu
     # Contract (02_determinism_addendum.md line 16): signed integers use ZigZag LEB128
     params = frame_params(a, b, c, d, signed=True)
     extras: dict = {}
+
+    return S, params, extras
+
+
+def _fit_affine_rational_floor(
+    pairs: list[tuple[str, tuple[int, int], tuple[int, int]]],
+    max_d: int = 10
+) -> tuple[SFn, bytes, dict] | None:
+    """
+    Fit rational AFFINE with floor division:
+      R = floor((a·H + b) / d1)
+      C = floor((c·W + e) / d2)
+
+    Contract (02_determinism_addendum.md §1.1.1):
+    - Denominators: d1, d2 ∈ {2, ..., 10} FROZEN
+    - Exact interval intersection over integer inequalities
+    - Lex-min selection by (d1, a, b, d2, c, e)
+
+    Args:
+        pairs: [(id, (H,W), (R,C))]
+        max_d: Maximum denominator (FROZEN=10)
+
+    Returns:
+        (S_fn, params_bytes, extras) if solution exists, None otherwise
+    """
+    import math
+
+    # Extract H→R and W→C relationships
+    Hs = [H for _, (H, W), _ in pairs]
+    Ws = [W for _, (H, W), _ in pairs]
+    Rs = [R for _, _, (R, _) in pairs]
+    Cs = [C for _, _, (_, C) in pairs]
+
+    def fit_axis(X: list[int], Y: list[int]) -> tuple[int, int, int] | None:
+        """
+        Fit Y = floor((a·X + b) / d) for smallest valid d.
+
+        Returns: (d, a, b) or None
+        """
+        best = None
+        n = len(X)
+
+        # Try denominators d ∈ {2, ..., max_d}
+        for d in range(2, max_d + 1):
+            # Step 1: Bound 'a' from ALL pair differences
+            # For any i,j: d·(Y_i - Y_j) - (d-1) ≤ a·(X_i - X_j) ≤ d·(Y_i - Y_j) + (d-1)
+            a_lo, a_hi = -(10**9), 10**9
+            ok = True
+
+            for i in range(n):
+                for j in range(i + 1, n):
+                    dx = X[i] - X[j]
+                    dy = Y[i] - Y[j]
+
+                    if dx == 0:
+                        # Same X: Y must be same (floor constraint)
+                        if Y[i] != Y[j]:
+                            ok = False
+                            break
+                        continue
+
+                    # Bounds for a·dx from floor constraint
+                    base = d * dy
+                    lo = base - (d - 1)
+                    hi = base + (d - 1)
+
+                    if dx > 0:
+                        # a ∈ [ceil(lo/dx), floor(hi/dx)]
+                        a_lo = max(a_lo, math.ceil(lo / dx))
+                        a_hi = min(a_hi, math.floor(hi / dx))
+                    else:  # dx < 0
+                        # Reverse bounds due to negative divisor
+                        a_lo = max(a_lo, math.ceil(hi / dx))
+                        a_hi = min(a_hi, math.floor(lo / dx))
+
+                    if a_lo > a_hi:
+                        ok = False
+                        break
+
+                if not ok:
+                    break
+
+            if not ok or a_lo > a_hi:
+                continue  # No valid 'a' for this d
+
+            # Pick lex-min 'a'
+            a = a_lo
+
+            # Step 2: Bound 'b' from per-sample constraints
+            # For each i: d·Y_i ≤ a·X_i + b ≤ d·Y_i + (d-1)
+            b_lo, b_hi = -(10**9), 10**9
+
+            for i in range(n):
+                lo = d * Y[i] - a * X[i]
+                hi = d * Y[i] + (d - 1) - a * X[i]
+                b_lo = max(b_lo, lo)
+                b_hi = min(b_hi, hi)
+
+                if b_lo > b_hi:
+                    ok = False
+                    break
+
+            if not ok:
+                continue
+
+            # Pick lex-min 'b'
+            b = b_lo
+
+            # Verify: floor((a·X_i + b) / d) == Y_i for ALL i
+            if all((a * X[i] + b) // d == Y[i] for i in range(n)):
+                cand = (d, a, b)
+                if best is None or cand < best:  # Lex-min
+                    best = cand
+
+        return best  # (d, a, b) or None
+
+    # Fit R = floor((a·H + b) / d1)
+    RH = fit_axis(Hs, Rs)
+    if RH is None:
+        return None
+
+    # Fit C = floor((c·W + e) / d2)
+    CW = fit_axis(Ws, Cs)
+    if CW is None:
+        return None
+
+    d1, a, b = RH
+    d2, c, e = CW
+
+    # S function
+    def S(H: int, W: int) -> tuple[int, int]:
+        R = (a * H + b) // d1
+        C = (c * W + e) // d2
+        return (R, C)
+
+    # Verify (safety)
+    for _, (H, W), (R, C) in pairs:
+        if S(H, W) != (R, C):
+            return None
+
+    # Serialize params: <6><d1><a><b><d2><c><e>
+    # ZigZag for signed integers (a, b, c, e can be negative)
+    params = frame_params(d1, a, b, d2, c, e, signed=True)
+
+    extras = {
+        "rational_floor": True,
+        "d1": d1,
+        "d2": d2,
+    }
 
     return S, params, extras
 
@@ -737,12 +913,20 @@ def synthesize_shape(
     count_reason = None
     frame_reason = None
 
-    # Try AFFINE
+    # Try AFFINE (standard)
     aff = _fit_affine(train_pairs)
     if aff is not None:
         candidates.append(("A",) + aff)
     else:
         aff_reason = "no integer solution for all trainings"
+
+    # Try AFFINE (rational floor) - WO-02 extension
+    aff_rational = _fit_affine_rational_floor(train_pairs, max_d=MAX_DENOMINATOR_AFFINE_RATIONAL)
+    if aff_rational is not None:
+        candidates.append(("A",) + aff_rational)
+        # If standard AFFINE failed but rational succeeded, update diagnostic
+        if aff_reason is not None:
+            aff_reason = "standard AFFINE failed, rational AFFINE succeeded"
 
     # Try PERIOD (requires grids)
     if presented_inputs is None:

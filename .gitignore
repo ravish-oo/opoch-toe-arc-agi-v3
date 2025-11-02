@@ -212,3 +212,6 @@ WO_completions/
 
 # out/ directory - track the directory but ignore all contents
 out/*
+ids_sweep50_noframe.txt
+ids_sweep100.txt
+ids_sweep50.txt

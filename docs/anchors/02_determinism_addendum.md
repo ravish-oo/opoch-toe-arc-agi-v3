@@ -36,9 +36,55 @@ Use the following byte codes (single ASCII):
 
 Examples:
 
-* AFFINE → `<4><a><b><c><d>`
+* AFFINE (standard) → `<4><a><b><c><d>`
+* AFFINE (rational floor) → `<6><d1><a><b><d2><c><e>` (see §1.1.1 below)
 * PERIOD_MULTIPLE → `<2><k_r><k_c>` with implicit p_r^min, p_c^min recorded in receipt as separate framed tuples `<row_periods_lcm><col_periods_lcm>`
 * COUNT_BASED → `<4><alpha1><beta1><alpha2><beta2>`, plus a *named* qual id (ASCII) hashed and recorded alongside
+
+### 1.1.1 AFFINE Rational Floor Extension (WO-02 freeze)
+
+**Added**: 2025-11-01 (WO-02 patch)
+**Status**: FROZEN
+
+**Pattern**:
+```
+R = floor((a·H + b) / d1)
+C = floor((c·W + e) / d2)
+```
+
+**Contract**:
+* Denominators: d1, d2 ∈ {2, 3, 4, 5, 6, 7, 8, 9, 10} **FROZEN**
+* Coefficients: a, b, c, e ∈ ℤ (signed integers, ZigZag-encoded)
+* Algorithm: Exact interval intersection over integer inequalities
+  * For each d ∈ [2,10]: compute bounds on a from all training pair differences
+  * Intersect bounds: [a_lo, a_hi]
+  * Pick lex-min integer a from bounds
+  * Compute bounds on b from per-sample constraints
+  * Pick lex-min integer b
+  * Verify: floor((a·H_i + b) / d) == R_i for ALL trainings
+* Selection: lex-min by (d1, a, b, d2, c, e)
+* Encoding: `<6><d1><a><b><d2><c><e>` (count=6, ZigZag for signed)
+* Branch: 'A' (same as standard AFFINE, distinguished by param count)
+
+**Receipt fields**:
+```json
+{
+  "branch_byte": "A",
+  "params_bytes_hex": "<encoded>",
+  "extras": {
+    "rational_floor": true,
+    "d1": <int>,
+    "d2": <int>
+  }
+}
+```
+
+**Determinism guarantee**: Given same train_pairs, returns same (d1,a,b,d2,c,e) or None.
+
+**Harness assertion**:
+```python
+assert MAX_DENOMINATOR == 10  # frozen, no runtime config
+```
 
 **S candidate ordering key:**
 

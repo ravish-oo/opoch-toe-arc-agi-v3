@@ -229,3 +229,34 @@ WO-09: H1, H2.
 WO-10: A1, A2, B1, B2, C1, C2.
 WO-11: J1 (double-run determinism).
 
+## more
+### whatsapp - TL;DR — Use Option 3: Hybrid
+WO-11 — Runner.
+The hybrid decision tree (try the 5 archetype engines first, then fall back to witness) belongs in WO-11 Task runner + determinism harness. That WO owns orchestration and the single, frozen receipt schema.
+
+Supporting pieces live where we already planned them:
+
+WO-10: implement the 5 finite archetype engines (border-scalar, window-dict, macro-tiling, pooled-blocks, markers-grid) as family adapters with receipts.
+
+WO-04: witness engine (φ,σ) + intersection.
+
+WO-01/02/05: Π, Shape S, Truth features the runner consumes.
+
+So: build engines in WO-10, keep witness in WO-04, wire the hybrid decision tree and receipts in WO-11.
+
+it’s a proposal for a hybrid law runner:
+
+Run 5 finite “archetype” engines first (border-scalar, window-dict, macro-tiling, pooled-blocks, markers-grid) with frozen tie rules; if none fits exactly, fall back to the general witness (φ,σ) extractor.
+
+One decision tree + one receipt schema: shape proven, engine used, features, tie tables, and meet—all receipted and fail-closed.
+
+Net effect: fast on common cases, complete on hard ones, zero guessing, fully deterministic via receipts.
+
+###  stop trying to force WO-02 to fit 3f7978a0 with (H,W) algebra
+WO-10 and WO-11.
+
+WO-10 (Family adapters / law engines): add the Column-Dictionary engine (Spec-B). It learns the column signature schema, builds the dict from trainings, verifies exact recon, and applies to test. Receipts: schema_id, col_signatures, squashed, dict, ties, fit_verified_on.
+
+WO-11 (Runner): wire the hybrid decision tree: try finite engines (incl. Column-Dict) first, then fall back to witness. One receipt schema, fail-closed.
+
+If later you need bands/centroids to enrich the signature, that comes after WO-05 Truth, but the basic Column-Dict engine can ship in WO-10 now.

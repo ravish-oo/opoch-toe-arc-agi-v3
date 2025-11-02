@@ -223,8 +223,14 @@ def run_wo02(data_dir: str, subset_file: str, continue_on_error: bool = False) -
     Raises:
         SystemExit(1): If continue_on_error=False and any SHAPE_CONTRADICTION found
     """
-    from arc.op.shape import synthesize_shape, apply_shape
+    from arc.op.shape import synthesize_shape, apply_shape, MAX_DENOMINATOR_AFFINE_RATIONAL
     from arc.op.hash import hash_bytes
+
+    # Harness assertion: verify frozen constant (02_determinism_addendum.md §1.1.1)
+    assert MAX_DENOMINATOR_AFFINE_RATIONAL == 10, (
+        f"BLOCKER: MAX_DENOMINATOR_AFFINE_RATIONAL must be 10 (frozen), "
+        f"got {MAX_DENOMINATOR_AFFINE_RATIONAL}"
+    )
 
     # Load task IDs
     with open(subset_file) as f:
