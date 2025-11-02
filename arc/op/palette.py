@@ -103,19 +103,23 @@ def apply_palette_map(G: np.ndarray, mapping: dict[int, int]) -> np.ndarray:
     """
     Apply palette mapping to grid.
 
+    Contract (00_math_spec.md §1 line 20):
+    "Display outputs through the same map (identity fallback for unseen colors)"
+
     Args:
         G: input grid
         mapping: dict[original_color -> canonical_code]
 
     Returns:
-        Grid with colors mapped to canonical codes
+        Grid with colors mapped to canonical codes.
+        Unmapped colors use IDENTITY fallback (not zero).
     """
-    # Vectorized lookup
+    # Vectorized lookup with IDENTITY fallback (spec requirement)
     uniq = np.unique(G)
-    lut = np.zeros(int(uniq.max()) + 1, dtype=np.int64)
+    lut = np.arange(int(uniq.max()) + 1, dtype=np.int64)  # Identity: lut[i] = i
     for orig, code in mapping.items():
         if orig in uniq:
-            lut[orig] = code
+            lut[orig] = code  # Override with mapping
 
     # Fast indexing
     return lut[G.astype(np.int64, copy=False)]

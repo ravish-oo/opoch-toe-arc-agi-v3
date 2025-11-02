@@ -105,27 +105,25 @@ def solve_task(
 
     Xt_list, Xstar_t, Pi_test, pi_rc = present_all(train_X_raw, Xstar_raw)
 
-    # WO-10K fix: Transform outputs to Π frame to match inputs
-    # Apply same palette + pose + anchor to each training output
+    # Apply Π to outputs (spec: "Display outputs through the same map")
+    # Contract (00_math_spec.md §1 line 20): "identity fallback for unseen colors"
+    # WO-10K: Apply SAME D4 pose as paired input, so X and Y in same Π frame
+    from arc.op.palette import apply_palette_map
+    from arc.op.d4 import apply_pose
+    from arc.op.anchor import anchor_to_origin
+
     Yt_list = []
     for i, Y_raw in enumerate(train_Y_raw):
-        # Get transform for this training grid
+        # Get the D4 pose that was applied to the paired input
         train_grid_rc = pi_rc.per_grid[i]
-        assert train_grid_rc["kind"] == "train" and train_grid_rc["index"] == i
 
-        # Apply palette mapping
-        from arc.op.palette import apply_palette_map
+        # Apply palette with identity fallback (unmapped colors → themselves)
         Y_pal = apply_palette_map(Y_raw, Pi_test.map)
 
-        # Apply D4 pose
-        from arc.op.d4 import apply_pose
+        # Apply SAME D4 pose as the paired input (WO-10K requirement)
         Y_posed = apply_pose(Y_pal, train_grid_rc["pose_id"])
 
-        # Apply anchor
-        from arc.op.anchor import anchor_to_origin, AnchorRc
-        anchor_rc = AnchorRc(train_grid_rc["anchor"]["dr"], train_grid_rc["anchor"]["dc"])
-        # For outputs, we anchor using the OUTPUT's foreground, not the input's anchor
-        # So we compute a fresh anchor for this output
+        # Recompute anchor for the output (may differ from input's anchor)
         Y_anchored, _ = anchor_to_origin(Y_posed)
 
         Yt_list.append(Y_anchored)
