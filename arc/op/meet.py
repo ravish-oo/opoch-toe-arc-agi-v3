@@ -251,3 +251,176 @@ def compose_meet(
     )
 
     return Y, receipt
+
+
+# ============================================================================
+# WO-09' - Meet as selector inside D* (after fixed-point propagation)
+# ============================================================================
+
+def select_from_domains(
+    D: np.ndarray,                           # Final domains (H,W,K) uint64 after lfp
+    C: list[int],                            # Color universe (sorted)
+    copy_values: Optional[np.ndarray] = None,  # From shape S (H,W), or None
+    unanimity_colors: Optional[np.ndarray] = None,  # Unanimous colors (H,W), or None
+    *,
+    bottom_color: int = 0                    # H2: must be 0
+) -> Tuple[np.ndarray, MeetRc]:
+    """
+    Select from final domains D* using frozen precedence.
+
+    Contract (WO-09'):
+    For each pixel p, selection inside D*[p]:
+    1. If copy_value[p] ∈ D*[p]: select copy_value[p] (copy path)
+    2. Else if D*[p] ≠ ∅: select min(D*[p]) (law path)
+    3. Else if unanimity_color[p] ∈ D*[p]: select unanimity_color[p] (unanimity path)
+    4. Else: select 0 (bottom path)
+
+    Containment guarantee: selected ∈ D*[p] always (harness will verify)
+    Idempotence: repaint produces same hash
+
+    Args:
+        D: Final domains after propagate_fixed_point (H,W,K) uint64
+        C: Color universe (sorted unique from Π inputs)
+        copy_values: Copy colors from shape S (H,W), or None
+        unanimity_colors: Unanimous block colors (H,W), or None
+        bottom_color: Must be 0 (H2)
+
+    Returns:
+        (Y, MeetRc): Selected output and receipt
+
+    Raises:
+        ValueError: if bottom_color != 0 (H2 violation)
+        ValueError: if selected color not in D*[p] (containment violation)
+    """
+    from .admit import _test_bit, _popcount_bitset
+
+    H, W, K = D.shape
+
+    # H2 enforcement
+    if bottom_color != 0:
+        raise ValueError(f"H2 violation: bottom_color must be 0, got {bottom_color}")
+
+    # Build color index lookup
+    color_to_idx = {c: i for i, c in enumerate(C)}
+
+    # Initialize Y (will fill with selections)
+    Y = np.zeros((H, W), dtype=np.uint8)
+
+    # Counters
+    count_copy = 0
+    count_law = 0
+    count_unanimity = 0
+    count_bottom = 0
+
+    # For each pixel, select according to frozen precedence
+    for r in range(H):
+        for c in range(W):
+            selected_color = None
+
+            # Path 1: Copy (if copy_value ∈ D*[p])
+            if copy_values is not None:
+                copy_color = int(copy_values[r, c])
+                if copy_color in color_to_idx:
+                    copy_idx = color_to_idx[copy_color]
+                    if _test_bit(D[r, c], copy_idx):
+                        # Copy color is admitted in D*[p]
+                        selected_color = copy_color
+                        count_copy += 1
+
+            # Path 2: Law (pick min(D*[p]) if non-empty)
+            if selected_color is None:
+                # Find all admitted colors at this pixel
+                admitted = []
+                for color_idx in range(len(C)):
+                    if _test_bit(D[r, c], color_idx):
+                        admitted.append(C[color_idx])
+
+                if admitted:
+                    # Pick smallest admitted color
+                    selected_color = min(admitted)
+                    count_law += 1
+
+            # Path 3: Unanimity (if unanimity_color ∈ D*[p])
+            if selected_color is None and unanimity_colors is not None:
+                unanimity_color = int(unanimity_colors[r, c])
+                if unanimity_color in color_to_idx:
+                    unanimity_idx = color_to_idx[unanimity_color]
+                    if _test_bit(D[r, c], unanimity_idx):
+                        # Unanimity color is admitted in D*[p]
+                        selected_color = unanimity_color
+                        count_unanimity += 1
+
+            # Path 4: Bottom (select 0)
+            if selected_color is None:
+                selected_color = bottom_color
+                count_bottom += 1
+
+            # Verify containment (WO-09' harness requirement)
+            if selected_color != bottom_color:
+                if selected_color not in color_to_idx:
+                    raise ValueError(
+                        f"Containment violation at ({r},{c}): "
+                        f"selected color {selected_color} not in universe C={C}"
+                    )
+                selected_idx = color_to_idx[selected_color]
+                if not _test_bit(D[r, c], selected_idx):
+                    raise ValueError(
+                        f"Containment violation at ({r},{c}): "
+                        f"selected color {selected_color} not in D*[p]"
+                    )
+
+            Y[r, c] = selected_color
+
+    # Idempotence check: repaint and verify same result
+    Y2 = np.zeros((H, W), dtype=np.uint8)
+    for r in range(H):
+        for c in range(W):
+            selected_color = None
+
+            # Same selection logic
+            if copy_values is not None:
+                copy_color = int(copy_values[r, c])
+                if copy_color in color_to_idx:
+                    copy_idx = color_to_idx[copy_color]
+                    if _test_bit(D[r, c], copy_idx):
+                        selected_color = copy_color
+
+            if selected_color is None:
+                admitted = []
+                for color_idx in range(len(C)):
+                    if _test_bit(D[r, c], color_idx):
+                        admitted.append(C[color_idx])
+                if admitted:
+                    selected_color = min(admitted)
+
+            if selected_color is None and unanimity_colors is not None:
+                unanimity_color = int(unanimity_colors[r, c])
+                if unanimity_color in color_to_idx:
+                    unanimity_idx = color_to_idx[unanimity_color]
+                    if _test_bit(D[r, c], unanimity_idx):
+                        selected_color = unanimity_color
+
+            if selected_color is None:
+                selected_color = bottom_color
+
+            Y2[r, c] = selected_color
+
+    # Compute repaint hash
+    repaint_hash = hash_bytes(Y2.tobytes())
+
+    # Build receipt
+    receipt = MeetRc(
+        count_copy=count_copy,
+        count_law=count_law,
+        count_unanimity=count_unanimity,
+        count_bottom=count_bottom,
+        bottom_color=bottom_color,
+        repaint_hash=repaint_hash,
+        copy_mask_hash=None,  # Not applicable for domain selection
+        law_mask_hash=None,
+        uni_mask_hash=None,
+        frame="presented",
+        shape=(H, W),
+    )
+
+    return Y, receipt

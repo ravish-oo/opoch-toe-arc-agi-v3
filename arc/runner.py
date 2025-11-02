@@ -21,7 +21,7 @@ import sys
 import platform
 from blake3 import blake3
 
-from arc.op import pi, shape, truth, witness, copy, unanimity, meet, families, components, tiebreak, border_scalar, pooled_blocks, markers_grid, slice_stack, kronecker, kronecker_mask
+from arc.op import pi, shape, truth, witness, copy, unanimity, meet, families, components, tiebreak, border_scalar, pooled_blocks, markers_grid, slice_stack, kronecker, kronecker_mask, admit
 from arc.op.receipts import ShapeRc
 from arc.op.hash import hash_bytes
 
@@ -1364,71 +1364,172 @@ def solve_task(
                             law_mask[r_out, c_out] = True
 
     # ========================================================================
-    # Step 7: Meet — compose with priority copy ▷ law ▷ unanimity ▷ bottom (WO-09)
+    # Step 7: Admit & Propagate (WO-11A) → Meet Selector (WO-09')
     # ========================================================================
 
-    # Encode copy_mask as LSB-first bitset
-    def _encode_bitset_lsb(mask: np.ndarray) -> bytes:
-        """Encode boolean mask as LSB-first bitset."""
-        flat = mask.flatten()
-        size = len(flat)
-        byte_count = (size + 7) // 8
-        bits = []
-        for byte_idx in range(byte_count):
-            byte_val = 0
-            for bit_offset in range(8):
-                idx = byte_idx * 8 + bit_offset
-                if idx < size and flat[idx]:
-                    byte_val |= (1 << bit_offset)
-            bits.append(byte_val)
-        return bytes(bits)
+    # Color universe: sorted unique from Π(inputs only)
+    # Use Xt_list from Step 1 (Π presentation)
+    C = admit.color_universe(Xstar_t, Xt_list)
 
-    copy_mask_bits = _encode_bitset_lsb(copy_mask)
+    # Initialize domains D0 to all colors allowed
+    D0 = admit.empty_domains(R_star, C_star, C)
 
-    # Encode law_mask as LSB-first bitset if it exists
-    law_mask_bits = None
-    if law_layer_values is not None and 'law_mask' in locals():
-        # Witness law with explicit mask
-        law_mask_bits = _encode_bitset_lsb(law_mask)
-    # else: law_mask_bits = None means law defined everywhere (for engines) or nowhere
+    # Build witness receipt for admit_from_witness
+    witness_rc_for_admit = None
+    if law_status in ["witness_singleton", "witness_underdetermined"]:
+        # Build per_train list from phi_law and sigma_law
+        # Note: We have intersection result in sections["witness"]
+        per_train = []
+        if phi_law:
+            # Geometric witness
+            phi_pieces = []
+            for p in phi_law:
+                phi_pieces.append({
+                    "comp_id": p.comp_id,
+                    "pose_id": p.pose_id,
+                    "dr": p.dr,
+                    "dc": p.dc,
+                    "r_per": p.r_per,
+                    "c_per": p.c_per,
+                    "r_res": p.r_res,
+                    "c_res": p.c_res,
+                    "bbox_h": 0,  # Not needed for admits (uses Xt dimensions)
+                    "bbox_w": 0,
+                    "src_r0": 0,
+                    "src_c0": 0,
+                    "target_r0": 0,
+                    "target_c0": 0
+                })
 
-    # Call compose_meet from WO-09
-    # Note: Xt parameter is only used for shape; all layers are on output grid (R*, C*)
-    Yt_dummy = np.zeros((R_star, C_star), dtype=np.uint8)  # Output shape in Π frame
+            per_train.append({
+                "kind": "geometric",
+                "phi": {"pieces": phi_pieces},
+                "sigma": {
+                    "domain_colors": list(sigma_law.domain_colors) if sigma_law and hasattr(sigma_law, 'domain_colors') else [],
+                    "lehmer": list(sigma_law.lehmer) if sigma_law and hasattr(sigma_law, 'lehmer') else [],
+                    "moved_count": len(sigma_law.domain_colors) if sigma_law and hasattr(sigma_law, 'domain_colors') else 0
+                }
+            })
+        else:
+            # Summary witness
+            per_train.append({
+                "kind": "summary",
+                "sigma": {"domain_colors": [], "lehmer": [], "moved_count": 0}
+            })
+
+        witness_rc_for_admit = {
+            "intersection": {
+                "status": sections["witness"].get("intersection_status", "singleton")
+            },
+            "per_train": per_train
+        }
+
+    # Build engine receipt for admit_from_engine
+    engine_apply_rc_for_admit = None
+    if law_status == "engine" and law_layer_values is not None:
+        engine_apply_rc_for_admit = {
+            "engine": engine_used,
+            "Yt": law_layer_values
+        }
+
+    # Collect admits from all layers
+    A_w, rc_w = admit.admit_from_witness(
+        Xstar_t if witness_rc_for_admit else np.zeros((R_star, C_star), dtype=np.uint8),
+        witness_rc_for_admit if witness_rc_for_admit else {"intersection": {"status": "failed"}, "per_train": []},
+        C
+    )
+
+    A_e, rc_e = admit.admit_from_engine(
+        Xstar_t,
+        engine_apply_rc_for_admit,
+        C
+    )
 
     # Unanimity: only applies when output shape == input shape
-    # Contract: truth blocks are on INPUT grid; if S changes shape, blocks don't map to output pixels
-    truth_blocks_for_meet = None
-    block_color_map_for_meet = None
     H_star_input, W_star_input = Xstar_t.shape
-
+    A_u, rc_u = None, None
     if (R_star == H_star_input) and (C_star == W_star_input):
-        # Shapes match: output pixels align with input blocks
-        truth_blocks_for_meet = truth_partition.labels
-        block_color_map_for_meet = unanimity_map
-    # else: shapes differ → unanimity doesn't apply (output pixels have no block assignment)
+        # Shapes match: build unanimity admits from truth blocks
+        # Build uni_rc dict from unanimity_map
+        uni_rc_for_admit = {
+            "blocks": [
+                {"block_id": block_id, "color": color}
+                for block_id, color in unanimity_map.items()
+            ]
+        }
+        A_u, rc_u = admit.admit_from_unanimity(truth_partition.labels, uni_rc_for_admit, C)
+    else:
+        # Shapes differ: no unanimity admits
+        A_u, rc_u = admit.admit_from_unanimity(
+            np.zeros((R_star, C_star), dtype=int),
+            {"blocks": []},
+            C
+        )
 
-    Yt, meet_rc = meet.compose_meet(
-        Xt=Yt_dummy,  # Dummy grid with output shape for size reference
-        copy_mask_bits=copy_mask_bits,
-        copy_values=copy_values,
-        law_mask_bits=law_mask_bits,
-        law_values=law_layer_values,
-        truth_blocks=truth_blocks_for_meet,  # None if shapes differ
-        block_color_map=block_color_map_for_meet,  # None if shapes differ
+    # Propagate to fixed point
+    admits_list = [A_w, A_e, A_u]
+    D_star, prop_rc = admit.propagate_fixed_point(D0, admits_list)
+
+    # Select from D* using frozen precedence
+    # Build copy_values grid (free copy colors)
+    copy_values_grid = copy_values  # Already built earlier
+
+    # Build unanimity_colors grid (only if shapes match)
+    unanimity_colors = None
+    if (R_star == H_star_input) and (C_star == W_star_input):
+        # Map unanimity_map to a grid
+        unanimity_colors = np.zeros((R_star, C_star), dtype=np.uint8)
+        for block_id, color in unanimity_map.items():
+            mask = (truth_partition.labels == block_id)
+            unanimity_colors[mask] = color
+
+    Yt, meet_rc = meet.select_from_domains(
+        D_star,
+        C,
+        copy_values=copy_values_grid,
+        unanimity_colors=unanimity_colors,
         bottom_color=0  # H2: frozen to 0
     )
 
-    # Store meet receipt
+    # Store admit & propagate receipts
+    sections["admit"] = {
+        "layers": [
+            {
+                "name": rc_w.name,
+                "bitmap_hash": rc_w.bitmap_hash,
+                "support_colors": rc_w.support_colors,
+                "stats": rc_w.stats
+            },
+            {
+                "name": rc_e.name,
+                "bitmap_hash": rc_e.bitmap_hash,
+                "support_colors": rc_e.support_colors,
+                "stats": rc_e.stats
+            },
+            {
+                "name": rc_u.name,
+                "bitmap_hash": rc_u.bitmap_hash,
+                "support_colors": rc_u.support_colors,
+                "stats": rc_u.stats
+            }
+        ],
+        "propagate": {
+            "passes": prop_rc.passes,
+            "shrink_events": prop_rc.shrink_events,
+            "shrunk_pixels": prop_rc.shrunk_pixels,
+            "per_pass_shrink": prop_rc.per_pass_shrink,
+            "domains_hash": prop_rc.domains_hash
+        }
+    }
+    hashes["admit"] = hash_bytes(str(sections["admit"]).encode())
+
+    # Store meet receipt (WO-09' selector)
     sections["meet"] = {
         "count_copy": meet_rc.count_copy,
         "count_law": meet_rc.count_law,
         "count_unanimity": meet_rc.count_unanimity,
         "count_bottom": meet_rc.count_bottom,
         "repaint_hash": meet_rc.repaint_hash,
-        "copy_mask_hash": meet_rc.copy_mask_hash,
-        "law_mask_hash": meet_rc.law_mask_hash,
-        "uni_mask_hash": meet_rc.uni_mask_hash,
         "shape": list(meet_rc.shape),
     }
     hashes["meet"] = hash_bytes(str(sections["meet"]).encode())

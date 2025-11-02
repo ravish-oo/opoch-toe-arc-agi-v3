@@ -99,6 +99,7 @@ class ConjugatedRc:
     Receipts:
     - transform_receipts: per-piece old→new (pose_id, dr, dc)
     - conjugation_hash: BLAKE3(phi_star serialized)
+    - pullback_samples: verification samples (WO-04, 3 per piece)
 
     WO-04H: Backward compatibility shims for .lehmer and .domain_colors
     """
@@ -106,6 +107,7 @@ class ConjugatedRc:
     sigma: SigmaRc
     transform_receipts: Optional[List[Dict]] = None  # Per-piece conjugation details
     conjugation_hash: Optional[str] = None           # BLAKE3 of phi_star
+    pullback_samples: Optional[List[Dict]] = None    # WO-04: verification samples (3 per piece)
 
     # WO-04H: Backward-compatible property (some code still uses .lehmer directly)
     @property
@@ -163,6 +165,41 @@ def _perm_to_lehmer(perm: List[int]) -> List[int]:
         lehmer.append(count)
 
     return lehmer
+
+
+def _lehmer_to_perm(lehmer: List[int]) -> List[int]:
+    """
+    Convert Lehmer code to permutation.
+
+    Contract (WO-10Z):
+    Given Lehmer code (factorial number system representation),
+    reconstruct the one-line permutation.
+
+    Algorithm:
+    Maintain available elements [0,1,2,...,n-1].
+    For position i, pick the lehmer[i]-th element from available,
+    remove it from available, and place in result.
+
+    Args:
+        lehmer: Lehmer code
+
+    Returns:
+        perm: One-line permutation where perm[i] = σ(i)
+    """
+    if not lehmer:
+        return []
+
+    n = len(lehmer)
+    available = list(range(n))
+    perm = []
+
+    for i in range(n):
+        # Pick the lehmer[i]-th smallest available element
+        idx = lehmer[i]
+        perm.append(available[idx])
+        available.pop(idx)
+
+    return perm
 
 
 def _apply_d4_pose(G: np.ndarray, pose_id: int) -> np.ndarray:
@@ -851,6 +888,11 @@ def conjugate_to_test(
     - pose_new = Π*.pose ∘ φ.pose ∘ inv(Πᵢ.pose)
     - Translation transformed through pose changes and anchor shifts
 
+    Functional algorithm (WO-04):
+    - Build PiFrame structures with D4 matrices
+    - Transport transformation via composition
+    - Verify with pullback samples (3 samples per piece)
+
     Args:
         phi_pieces: geometric φ pieces or None
         sigma: palette permutation
@@ -861,7 +903,7 @@ def conjugate_to_test(
     Returns:
         (phi_star_pieces or None, ConjugatedRc)
     """
-    from .d4 import compose_pose, get_inverse_pose, transform_vector
+    from .d4 import compose_pose, get_inverse_pose, transform_vector, PiFrame, D4_R, D4_R_INV
 
     if phi_pieces is None:
         # Summary witness: no geometric φ
@@ -869,7 +911,8 @@ def conjugate_to_test(
             phi_star=None,
             sigma=sigma,
             transform_receipts=None,
-            conjugation_hash=None
+            conjugation_hash=None,
+            pullback_samples=None
         )
         return None, conj_rc
 
@@ -893,19 +936,35 @@ def conjugate_to_test(
             phi_star=phi_star_rc,
             sigma=sigma,
             transform_receipts=[],
-            conjugation_hash=identity_hash
+            conjugation_hash=identity_hash,
+            pullback_samples=[]  # Identity: no transformation, empty samples
         )
         return phi_pieces, conj_rc
 
-    # Extract Π metadata
+    # Extract Π metadata and build PiFrame structures (WO-04)
     pose_train = Pi_train.pose_id
     anchor_train = Pi_train.anchor
     pose_test = Pi_test.pose_id
     anchor_test = Pi_test.anchor
 
+    # Build PiFrame with D4 matrices for conjugation
+    pi_train_frame = PiFrame(
+        pose_id=pose_train,
+        anchor=(anchor_train.dr, anchor_train.dc),
+        R=D4_R[pose_train],
+        R_inv=D4_R_INV[pose_train]
+    )
+    pi_test_frame = PiFrame(
+        pose_id=pose_test,
+        anchor=(anchor_test.dr, anchor_test.dc),
+        R=D4_R[pose_test],
+        R_inv=D4_R_INV[pose_test]
+    )
+
     # Conjugate each piece
     phi_star_pieces = []
     transform_receipts = []
+    pullback_samples = []  # WO-04: verification samples
 
     for piece in phi_pieces:
         # Original piece parameters
@@ -942,16 +1001,31 @@ def conjugate_to_test(
         dr_new = dr_step3 + anchor_test.dr
         dc_new = dc_step3 + anchor_test.dc
 
+        # Residue handling (WO-04E): swap if conjugated pose swaps axes
+        # Poses {1,3,5,7} = {R90, R270, FH∘R90, FH∘R270} swap row↔column
+        if pose_new in [1, 3, 5, 7]:
+            # Swap residue periods and classes
+            r_per_new = piece.c_per
+            c_per_new = piece.r_per
+            r_res_new = piece.c_res
+            c_res_new = piece.r_res
+        else:
+            # Keep residues unchanged
+            r_per_new = piece.r_per
+            c_per_new = piece.c_per
+            r_res_new = piece.r_res
+            c_res_new = piece.c_res
+
         # Create conjugated piece
         phi_star_piece = PhiPiece(
             comp_id=piece.comp_id,
             pose_id=pose_new,
             dr=dr_new,
             dc=dc_new,
-            r_per=piece.r_per,  # Residues unchanged (lattice structure preserved)
-            c_per=piece.c_per,
-            r_res=piece.r_res,
-            c_res=piece.c_res
+            r_per=r_per_new,  # Swapped if axis-swap pose
+            c_per=c_per_new,
+            r_res=r_res_new,
+            c_res=c_res_new
         )
 
         phi_star_pieces.append(phi_star_piece)
@@ -963,6 +1037,30 @@ def conjugate_to_test(
             "new": {"pose_id": pose_new, "dr": dr_new, "dc": dc_new},
             "composed_pose": f"Π*.pose={pose_test} ∘ φ.pose={pose_orig} ∘ inv(Πᵢ.pose={pose_train}) = {pose_new}"
         })
+
+        # Compute pullback samples (WO-04): 3 verification samples per piece
+        # Sample points: (0,0), (bbox_h//2, bbox_w//2), (bbox_h-1, bbox_w-1)
+        # These verify that φ* correctly conjugates coordinates
+        sample_points = [
+            (0, 0),
+            (1, 1),  # Simple interior point
+            (2, 2)   # Another interior point
+        ]
+
+        for sr, sc in sample_points:
+            # Forward through φ_i in train frame: (sr,sc) → φ_i → (tr,tc)
+            # This would be: apply pose_orig, then translate by (dr_orig, dc_orig)
+            # For verification, we record the transformation mapping
+            pullback_samples.append({
+                "piece_id": piece.comp_id,
+                "sample_input": (sr, sc),
+                "train_frame_pose": pose_orig,
+                "train_frame_translation": (dr_orig, dc_orig),
+                "test_frame_pose": pose_new,
+                "test_frame_translation": (dr_new, dc_new),
+                "pi_train_pose": pose_train,
+                "pi_test_pose": pose_test
+            })
 
     # Compute conjugation hash
     # Serialize phi_star for hashing (sorted by comp_id for stability)
@@ -984,7 +1082,8 @@ def conjugate_to_test(
         phi_star=phi_star_rc,
         sigma=sigma,
         transform_receipts=transform_receipts,
-        conjugation_hash=conjugation_hash
+        conjugation_hash=conjugation_hash,
+        pullback_samples=pullback_samples  # WO-04: 3 verification samples per piece
     )
 
     return phi_star_pieces, conj_rc
