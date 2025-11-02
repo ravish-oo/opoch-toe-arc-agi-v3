@@ -107,6 +107,26 @@ class ComponentsRc:
 
 
 @dataclass
+class CopyRc:
+    """
+    Free copy receipt.
+
+    Contract (02_determinism_addendum.md §10 line 245):
+    "Free copy: singleton_count and singleton_mask_hash (bitset bytes)"
+
+    Contract (00_math_spec.md §5):
+    S(p) = ⋂_i {φ_i^*(p)} - strict intersection, no majority
+    """
+    singleton_count: int           # |{p : |S(p)| = 1}|
+    singleton_mask_hash: str       # BLAKE3(bitset) - row-major LSB-first
+    undefined_count: int           # |{p : ∃i, p ∉ dom(φ_i^*)}|
+    disagree_count: int            # |{p : φ_i^*(p) ≠ φ_j^*(p)}|
+    multi_hit_count: int           # |{p : |φ_i^*(p)| > 1}| (should be 0)
+    H: int
+    W: int
+
+
+@dataclass
 class RunRc:
     """
     Root receipt container for a single task run.

@@ -82,7 +82,7 @@
   **Proof obligations (PO):** tag set equals frozen string; fixed point reached; Δ candidates verified by exact equality; identity Δ excluded; record `(method, modulus/root or verified=true)`.
   **Gotchas:** no dynamic tags; must verify overlaps by pixel equality.
 
-## WO-06 — Free copy S(p) (BLOCKER)
+## WO-06 — Free copy S(p) (BLOCKER) ✅ COMPLETED
 
 **Goal:** compute singleton free copies from φ_i^*.
 **Delivers:**
