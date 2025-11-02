@@ -412,14 +412,413 @@ def fit_macro_tiling(
     train_Y_list: List[np.ndarray],
     truth_list: List[Any],  # TruthRc from WO-05
 ) -> EngineFitRc:
-    """Stub: Macro-Tiling engine not implemented in WO-10 MVP."""
-    receipt = {
-        "engine": "macro_tiling",
-        "ok": False,
-        "error": "NOT_IMPLEMENTED",
-        "note": "WO-10 MVP implements Column-Dictionary only",
+    """
+    Fit Macro-Tiling engine (WO-10A).
+
+    Contract (WO-10A, common_mistakes.md A1/A2/C2/B1):
+    1. Extract bands from Truth row_clusters/col_clusters (exact, no thresholds)
+    2. For each training, iterate over tiles (band grid cells)
+    3. Compute per-tile counts for all colors
+    4. Apply strict majority rule: count > sum(other_counts) for foreground colors
+    5. Handle ties: min(foreground_colors_with_max_count) (C2)
+    6. Handle empty tiles: background color (A2)
+    7. Verify exact reconstruction on all trainings
+    8. Return full receipts: row_bands, col_bands, foreground_colors, background_colors, per-tile decisions (B1)
+
+    Algorithm:
+    - Bands from Truth: sorted(set(row_clusters)), sorted(set(col_clusters))
+    - Candidate colors from trainings only (A1)
+    - Strict majority: count > sum(other_counts), not mode
+    - Verification: exact reconstruction or fail
+
+    Args:
+        train_Xt_list: [Π(X_i), ...] for i in trainings
+        train_Y_list: [Y_i, ...] (raw outputs, not Π-presented)
+        truth_list: [TruthRc_i, ...] for i in trainings
+
+    Returns:
+        EngineFitRc with ok=True if fits all trainings exactly, else ok=False
+    """
+    engine = "macro_tiling"
+
+    # Check that we have at least one training
+    if not train_Xt_list or not train_Y_list or not truth_list:
+        receipt = {
+            "engine": engine,
+            "ok": False,
+            "error": "NO_TRAININGS",
+        }
+        return EngineFitRc(engine=engine, ok=False, receipt=receipt)
+
+    # Check that all lists have same length
+    if not (len(train_Xt_list) == len(train_Y_list) == len(truth_list)):
+        receipt = {
+            "engine": engine,
+            "ok": False,
+            "error": "MISMATCHED_TRAINING_COUNTS",
+        }
+        return EngineFitRc(engine=engine, ok=False, receipt=receipt)
+
+    # Infer dtype from first training output
+    dtype = train_Y_list[0].dtype
+
+    # Extract bands from first Truth (all trainings should have same bands)
+    # Bands are boundary indices: row_clusters = [0, r1, r2, ...], col_clusters = [0, c1, c2, ...]
+    row_clusters = truth_list[0].row_clusters
+    col_clusters = truth_list[0].col_clusters
+
+    # Bands: sorted unique boundary indices
+    row_bands = sorted(set(row_clusters))
+    col_bands = sorted(set(col_clusters))
+
+    # Check that bands define at least one tile
+    if len(row_bands) < 2 or len(col_bands) < 2:
+        receipt = {
+            "engine": engine,
+            "ok": False,
+            "error": "INSUFFICIENT_BANDS",
+            "row_bands": row_bands,
+            "col_bands": col_bands,
+        }
+        return EngineFitRc(engine=engine, ok=False, receipt=receipt)
+
+    # Collect candidate colors from trainings only (A1 guard)
+    # foreground_colors: all non-zero colors in outputs
+    # background_colors: {0} (frozen)
+    all_output_colors = set()
+    for Y in train_Y_list:
+        colors = np.unique(Y).tolist()
+        all_output_colors.update(colors)
+
+    # Split into foreground (nonzero) and background (zero)
+    foreground_colors = sorted([c for c in all_output_colors if c != 0])
+    background_colors = [0]  # frozen to 0 (H2 from common_mistakes.md)
+
+    # Build decision rules per tile (band grid cell)
+    # We'll learn a frozen rule: for each tile, what color to emit
+    # Tile (i, j) spans row_bands[i]:row_bands[i+1], col_bands[j]:col_bands[j+1]
+
+    num_row_tiles = len(row_bands) - 1
+    num_col_tiles = len(col_bands) - 1
+
+    # Dictionary to store per-tile decisions from trainings
+    # Key: (tile_r, tile_c), Value: {color: count_across_trainings}
+    tile_aggregates = {}
+    for r_idx in range(num_row_tiles):
+        for c_idx in range(num_col_tiles):
+            tile_aggregates[(r_idx, c_idx)] = {}
+
+    # Process each training
+    train_receipts = []
+    for train_idx, (Xt, Y) in enumerate(zip(train_Xt_list, train_Y_list)):
+        train_id = f"train{train_idx}"
+
+        # Check that Y dimensions match band grid
+        H, W = Y.shape
+        expected_H = row_bands[-1] if row_bands else 0
+        expected_W = col_bands[-1] if col_bands else 0
+
+        # For each tile, compute counts and majority decision
+        tile_decisions = []
+        for r_idx in range(num_row_tiles):
+            r_start = row_bands[r_idx]
+            r_end = row_bands[r_idx + 1]
+
+            for c_idx in range(num_col_tiles):
+                c_start = col_bands[c_idx]
+                c_end = col_bands[c_idx + 1]
+
+                # Extract tile from output
+                tile = Y[r_start:r_end, c_start:c_end]
+
+                # Compute per-color counts in this tile
+                tile_colors, tile_counts = np.unique(tile, return_counts=True)
+                counts_dict = {int(color): int(count) for color, count in zip(tile_colors, tile_counts)}
+
+                # Total pixels in tile
+                total_pixels = tile.size
+
+                # Apply strict majority rule (C2 guard)
+                # Strict majority: count > sum(other_counts) for foreground colors
+                # If no strict majority, fallback to background (A2)
+
+                decision_color = None
+                decision_rule = None
+
+                if total_pixels == 0:
+                    # Empty tile (A2 guard: empty → background)
+                    decision_color = background_colors[0]
+                    decision_rule = "EMPTY_TILE_BACKGROUND"
+                else:
+                    # Check for strict majority among foreground colors
+                    max_count = 0
+                    max_color_candidates = []
+
+                    for color in foreground_colors:
+                        count = counts_dict.get(color, 0)
+                        other_counts = sum(counts_dict.get(c, 0) for c in counts_dict if c != color)
+
+                        # Strict majority: count > other_counts
+                        if count > other_counts:
+                            if count > max_count:
+                                max_count = count
+                                max_color_candidates = [color]
+                            elif count == max_count:
+                                max_color_candidates.append(color)
+
+                    if max_color_candidates:
+                        # Tie-break: min(candidates) (C2 guard)
+                        decision_color = min(max_color_candidates)
+                        decision_rule = "STRICT_MAJORITY_FOREGROUND"
+                    else:
+                        # No strict majority → fallback to background (C2 guard)
+                        decision_color = background_colors[0]
+                        decision_rule = "NO_STRICT_MAJORITY_FALLBACK_BACKGROUND"
+
+                # Record decision
+                tile_decisions.append({
+                    "tile_r": r_idx,
+                    "tile_c": c_idx,
+                    "r_span": [r_start, r_end],
+                    "c_span": [c_start, c_end],
+                    "counts": counts_dict,
+                    "decision": decision_color,
+                    "rule": decision_rule,
+                })
+
+                # Aggregate for learning (accumulate across trainings)
+                if decision_color not in tile_aggregates[(r_idx, c_idx)]:
+                    tile_aggregates[(r_idx, c_idx)][decision_color] = 0
+                tile_aggregates[(r_idx, c_idx)][decision_color] += 1
+
+        # Record training receipt (B1: both stage-1 counts and final decisions)
+        train_receipts.append({
+            "train_id": train_id,
+            "tile_decisions": tile_decisions,
+            "fit_verified": False,  # will verify below
+        })
+
+    # Learn frozen tile rules: for each tile, unanimous decision across trainings
+    tile_rules = {}
+    for (r_idx, c_idx), decisions in tile_aggregates.items():
+        if len(decisions) != 1:
+            # Conflict: different trainings decided different colors for this tile
+            receipt = {
+                "engine": engine,
+                "ok": False,
+                "error": "TILE_DECISION_CONFLICT",
+                "tile": [r_idx, c_idx],
+                "decisions": {str(k): v for k, v in decisions.items()},
+            }
+            return EngineFitRc(engine=engine, ok=False, receipt=receipt)
+
+        # Unanimous decision
+        tile_rules[(r_idx, c_idx)] = list(decisions.keys())[0]
+
+    # Verify reconstruction on all trainings
+    fit_verified_on = []
+    for train_idx, Y in enumerate(train_Y_list):
+        train_id = f"train{train_idx}"
+
+        # Reconstruct output from tile rules
+        H_out, W_out = Y.shape
+        Y_reconstructed = np.zeros((H_out, W_out), dtype=dtype)
+
+        for r_idx in range(num_row_tiles):
+            r_start = row_bands[r_idx]
+            r_end = row_bands[r_idx + 1]
+
+            for c_idx in range(num_col_tiles):
+                c_start = col_bands[c_idx]
+                c_end = col_bands[c_idx + 1]
+
+                # Fill tile with learned color
+                decision_color = tile_rules[(r_idx, c_idx)]
+                Y_reconstructed[r_start:r_end, c_start:c_end] = decision_color
+
+        # Verify exact equality
+        if not np.array_equal(Y_reconstructed, Y):
+            receipt = {
+                "engine": engine,
+                "ok": False,
+                "error": "RECONSTRUCTION_MISMATCH",
+                "train_id": train_id,
+            }
+            return EngineFitRc(engine=engine, ok=False, receipt=receipt)
+
+        train_receipts[train_idx]["fit_verified"] = True
+        fit_verified_on.append(train_id)
+
+    # Build final receipt
+    # Serialize tile rules
+    tile_rules_serialized = {
+        f"{r_idx},{c_idx}": int(color)
+        for (r_idx, c_idx), color in tile_rules.items()
     }
-    return EngineFitRc(engine="macro_tiling", ok=False, receipt=receipt)
+
+    receipt = {
+        "engine": engine,
+        "ok": True,
+        "dtype": str(dtype),
+        "row_bands": row_bands,
+        "col_bands": col_bands,
+        "foreground_colors": foreground_colors,
+        "background_colors": background_colors,
+        "tile_rules": tile_rules_serialized,
+        "train": train_receipts,
+        "fit_verified_on": fit_verified_on,
+    }
+
+    return EngineFitRc(engine=engine, ok=True, receipt=receipt)
+
+
+def apply_macro_tiling(
+    test_Xt: np.ndarray,
+    truth_test: Any,  # TruthRc from WO-05
+    fit_rc: EngineFitRc,
+) -> EngineApplyRc:
+    """
+    Apply Macro-Tiling to test (WO-10A).
+
+    Contract (WO-10A):
+    1. Use same bands and tile rules from fit_rc
+    2. For each tile in test, apply learned color decision
+    3. Render test output Y* tile by tile
+    4. Return EngineApplyRc with Yt, final_shape, and per-tile decision receipts
+
+    Algorithm:
+    - Extract row_bands, col_bands, and tile_rules from fit_rc
+    - For each tile (r_idx, c_idx), fill with tile_rules[(r_idx, c_idx)]
+    - Build Yt by filling all tiles
+    - Return full receipts with per-tile application
+
+    Args:
+        test_Xt: Π(test) grid (H*, W*)
+        truth_test: TruthRc for test
+        fit_rc: EngineFitRc from fit_macro_tiling
+
+    Returns:
+        EngineApplyRc with ok=True if apply succeeds, else ok=False
+    """
+    engine = "macro_tiling"
+
+    # Check fit succeeded
+    if not fit_rc.ok:
+        receipt = {
+            "engine": engine,
+            "ok": False,
+            "error": "FIT_FAILED",
+            "fit_receipt": fit_rc.receipt,
+        }
+        return EngineApplyRc(
+            engine=engine,
+            ok=False,
+            Yt=None,
+            final_shape=None,
+            receipt=receipt,
+        )
+
+    # Extract learned parameters from fit_rc
+    row_bands = fit_rc.receipt["row_bands"]
+    col_bands = fit_rc.receipt["col_bands"]
+    tile_rules_serialized = fit_rc.receipt["tile_rules"]
+    dtype = np.dtype(fit_rc.receipt["dtype"])
+
+    # Deserialize tile rules
+    tile_rules = {}
+    for key, color in tile_rules_serialized.items():
+        r_idx, c_idx = map(int, key.split(","))
+        tile_rules[(r_idx, c_idx)] = color
+
+    # Check that test Truth has compatible bands
+    # (In practice, test might have different bands, but for this engine we use fit bands)
+
+    # Determine output shape from bands
+    num_row_tiles = len(row_bands) - 1
+    num_col_tiles = len(col_bands) - 1
+
+    if num_row_tiles <= 0 or num_col_tiles <= 0:
+        receipt = {
+            "engine": engine,
+            "ok": False,
+            "error": "INVALID_BANDS",
+            "row_bands": row_bands,
+            "col_bands": col_bands,
+        }
+        return EngineApplyRc(
+            engine=engine,
+            ok=False,
+            Yt=None,
+            final_shape=None,
+            receipt=receipt,
+        )
+
+    H_out = row_bands[-1]
+    W_out = col_bands[-1]
+
+    # Initialize output
+    Yt = np.zeros((H_out, W_out), dtype=dtype)
+
+    # Apply tile rules
+    tile_applications = []
+    for r_idx in range(num_row_tiles):
+        r_start = row_bands[r_idx]
+        r_end = row_bands[r_idx + 1]
+
+        for c_idx in range(num_col_tiles):
+            c_start = col_bands[c_idx]
+            c_end = col_bands[c_idx + 1]
+
+            # Lookup tile rule
+            if (r_idx, c_idx) not in tile_rules:
+                # Missing tile rule (shouldn't happen if fit succeeded)
+                receipt = {
+                    "engine": engine,
+                    "ok": False,
+                    "error": "MISSING_TILE_RULE",
+                    "tile": [r_idx, c_idx],
+                }
+                return EngineApplyRc(
+                    engine=engine,
+                    ok=False,
+                    Yt=None,
+                    final_shape=None,
+                    receipt=receipt,
+                )
+
+            decision_color = tile_rules[(r_idx, c_idx)]
+
+            # Fill tile
+            Yt[r_start:r_end, c_start:c_end] = decision_color
+
+            # Record application
+            tile_applications.append({
+                "tile_r": r_idx,
+                "tile_c": c_idx,
+                "r_span": [r_start, r_end],
+                "c_span": [c_start, c_end],
+                "decision": int(decision_color),
+            })
+
+    final_shape = (H_out, W_out)
+
+    # Build receipt (success)
+    receipt = {
+        "engine": engine,
+        "ok": True,
+        "row_bands": row_bands,
+        "col_bands": col_bands,
+        "tile_applications": tile_applications,
+        "final_shape": list(final_shape),
+    }
+
+    return EngineApplyRc(
+        engine=engine,
+        ok=True,
+        Yt=Yt,
+        final_shape=final_shape,
+        receipt=receipt,
+    )
 
 
 def fit_pooled_blocks(

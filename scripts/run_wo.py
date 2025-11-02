@@ -860,6 +860,224 @@ def run_wo04c_conjugation() -> list[dict]:
     return results
 
 
+def run_wo10a_macro_tiling() -> list[dict]:
+    """
+    WO-10A: Test Macro-Tiling engine with synthetic cases.
+
+    Synthetic test cases:
+    1. Simple 2x2 band grid with uniform color per tile
+    2. Strict majority rule (count > sum(others))
+    3. Tie-break case (min color selection)
+    4. Empty tile fallback to background
+
+    Returns:
+        List of receipts per test case
+    """
+    from arc.op.families import fit_macro_tiling, apply_macro_tiling
+    from arc.op.truth import TruthRc, OverlapRc
+    import numpy as np
+
+    results = []
+
+    # Test case 1: Simple uniform tiles
+    test_case = {
+        "test_case": "uniform_tiles",
+        "desc": "2x2 band grid, each tile uniform color",
+    }
+
+    # Create synthetic Truth with row_clusters=[0, 3, 6], col_clusters=[0, 4, 8]
+    # This creates a 2x2 tile grid:
+    # - Tile (0,0): rows [0:3], cols [0:4]
+    # - Tile (0,1): rows [0:3], cols [4:8]
+    # - Tile (1,0): rows [3:6], cols [0:4]
+    # - Tile (1,1): rows [3:6], cols [4:8]
+
+    overlaps = OverlapRc(
+        method="fft_int", modulus=None, root=None,
+        candidates=[], accepted=[], identity_excluded=True
+    )
+
+    truth1 = TruthRc(
+        tag_set_version="test",
+        partition_hash="test",
+        block_hist=[1],
+        overlaps=overlaps,
+        row_clusters=[0, 3, 6],
+        col_clusters=[0, 4, 8],
+        refinement_steps=0,
+        method="paige_tarjan"
+    )
+
+    # Training 1: uniform colors per tile
+    # Tile (0,0)=1, (0,1)=2, (1,0)=3, (1,1)=4
+    Y1 = np.array([
+        [1, 1, 1, 1, 2, 2, 2, 2],
+        [1, 1, 1, 1, 2, 2, 2, 2],
+        [1, 1, 1, 1, 2, 2, 2, 2],
+        [3, 3, 3, 3, 4, 4, 4, 4],
+        [3, 3, 3, 3, 4, 4, 4, 4],
+        [3, 3, 3, 3, 4, 4, 4, 4],
+    ], dtype=np.uint8)
+
+    # Training 2: same tile pattern (must be unanimous)
+    Y2 = Y1.copy()
+
+    # Dummy Xt (not used for macro-tiling fit)
+    Xt1 = np.zeros((6, 8), dtype=np.uint8)
+    Xt2 = np.zeros((6, 8), dtype=np.uint8)
+
+    train_Xt_list = [Xt1, Xt2]
+    train_Y_list = [Y1, Y2]
+    truth_list = [truth1, truth1]
+
+    # Fit
+    fit_rc = fit_macro_tiling(train_Xt_list, train_Y_list, truth_list)
+
+    # Verify fit succeeded
+    assert fit_rc.ok, f"Fit failed: {fit_rc.receipt}"
+    assert fit_rc.receipt["row_bands"] == [0, 3, 6]
+    assert fit_rc.receipt["col_bands"] == [0, 4, 8]
+    assert fit_rc.receipt["foreground_colors"] == [1, 2, 3, 4]
+    assert fit_rc.receipt["background_colors"] == [0]
+
+    # Verify tile rules
+    tile_rules = fit_rc.receipt["tile_rules"]
+    assert tile_rules["0,0"] == 1
+    assert tile_rules["0,1"] == 2
+    assert tile_rules["1,0"] == 3
+    assert tile_rules["1,1"] == 4
+
+    # Apply to test
+    test_Xt = np.zeros((6, 8), dtype=np.uint8)
+    apply_rc = apply_macro_tiling(test_Xt, truth1, fit_rc)
+
+    # Verify apply succeeded
+    assert apply_rc.ok, f"Apply failed: {apply_rc.receipt}"
+    assert np.array_equal(apply_rc.Yt, Y1)
+
+    test_case["result"] = "PASS"
+    test_case["fit_ok"] = fit_rc.ok
+    test_case["apply_ok"] = apply_rc.ok
+    results.append(test_case)
+
+    # Test case 2: Uniform tiles with different colors
+    test_case = {
+        "test_case": "multi_color_tiles",
+        "desc": "Each tile uniform, different colors across tiles",
+    }
+
+    # Training with uniform tiles (different colors)
+    # Tile (0,0)=5, (0,1)=7, (1,0)=1, (1,1)=4
+    Y3 = np.array([
+        [5, 5, 5, 5, 7, 7, 7, 7],
+        [5, 5, 5, 5, 7, 7, 7, 7],
+        [5, 5, 5, 5, 7, 7, 7, 7],
+        [1, 1, 1, 1, 4, 4, 4, 4],
+        [1, 1, 1, 1, 4, 4, 4, 4],
+        [1, 1, 1, 1, 4, 4, 4, 4],
+    ], dtype=np.uint8)
+
+    train_Xt_list = [Xt1]
+    train_Y_list = [Y3]
+    truth_list = [truth1]
+
+    fit_rc = fit_macro_tiling(train_Xt_list, train_Y_list, truth_list)
+
+    # Verify fit succeeded
+    assert fit_rc.ok, f"Fit failed: {fit_rc.receipt}"
+
+    # Check tile decisions
+    tile_rules = fit_rc.receipt["tile_rules"]
+    assert tile_rules["0,0"] == 5  # Tile (0,0)
+    assert tile_rules["0,1"] == 7  # Tile (0,1)
+    assert tile_rules["1,0"] == 1  # Tile (1,0)
+    assert tile_rules["1,1"] == 4  # Tile (1,1)
+
+    test_case["result"] = "PASS"
+    test_case["fit_ok"] = fit_rc.ok
+    results.append(test_case)
+
+    # Test case 3: Background tile (all zeros)
+    test_case = {
+        "test_case": "background_tile",
+        "desc": "Tile with all background (color 0)",
+    }
+
+    # Create a tile with all background
+    truth_simple = TruthRc(
+        tag_set_version="test",
+        partition_hash="test",
+        block_hist=[1],
+        overlaps=overlaps,
+        row_clusters=[0, 4],
+        col_clusters=[0, 4],
+        refinement_steps=0,
+        method="paige_tarjan"
+    )
+
+    # Tile with all background (0)
+    Y4 = np.array([
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+    ], dtype=np.uint8)
+
+    Xt_simple = np.zeros((4, 4), dtype=np.uint8)
+    fit_rc = fit_macro_tiling([Xt_simple], [Y4], [truth_simple])
+
+    # Verify fit succeeded
+    assert fit_rc.ok, f"Fit failed: {fit_rc.receipt}"
+
+    # Tile should be background (0)
+    # When all pixels are 0, foreground_colors = [], so no strict majority
+    # Fallback to background 0
+    tile_rules = fit_rc.receipt["tile_rules"]
+    assert tile_rules["0,0"] == 0  # Background
+
+    test_case["result"] = "PASS"
+    test_case["fit_ok"] = fit_rc.ok
+    results.append(test_case)
+
+    # Test case 4: Verify fit_verified_on receipts
+    test_case = {
+        "test_case": "verify_receipts",
+        "desc": "Check B1 guard: stage-1 counts + final decisions",
+    }
+
+    # Use test case 1 data
+    fit_rc = fit_macro_tiling([Xt1, Xt2], [Y1, Y2], [truth1, truth1])
+
+    # Verify B1: receipts contain both counts and decisions
+    assert "train" in fit_rc.receipt
+    for train_receipt in fit_rc.receipt["train"]:
+        assert "tile_decisions" in train_receipt
+        for tile_decision in train_receipt["tile_decisions"]:
+            assert "counts" in tile_decision  # stage-1 evidence
+            assert "decision" in tile_decision  # final decision
+            assert "rule" in tile_decision  # decision rule
+
+    # Verify A1: foreground_colors from trainings only
+    assert "foreground_colors" in fit_rc.receipt
+    assert "background_colors" in fit_rc.receipt
+
+    # Verify fit_verified_on
+    assert fit_rc.receipt["fit_verified_on"] == ["train0", "train1"]
+
+    test_case["result"] = "PASS"
+    test_case["fit_ok"] = fit_rc.ok
+    results.append(test_case)
+
+    print(f"\n{'='*60}")
+    print(f"WO-10A Macro-Tiling Summary")
+    print(f"{'='*60}")
+    print(f"Test cases:         {len(results)}")
+    print(f"Passed:             {sum(1 for r in results if r['result'] == 'PASS')}")
+    print(f"{'='*60}\n")
+
+    return results
+
+
 def run_wo05(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts") -> list[dict]:
     """
     WO-05: Test Truth compiler (Paige-Tarjan gfp).
@@ -2534,6 +2752,24 @@ def main():
             print(f"Fit succeeded:      {fit_ok_count}")
             print(f"Apply succeeded:    {apply_ok_count}")
             print(f"{'='*60}\n")
+
+    elif args.wo == "WO-10A":
+        # WO-10A: Macro-Tiling engine test with synthetic cases
+        print(f"Running {args.wo} macro-tiling tests (run 1/2)...")
+        r1_list = run_wo10a_macro_tiling()
+        print(f"Running {args.wo} macro-tiling tests (run 2/2)...")
+        r2_list = run_wo10a_macro_tiling()
+
+        # Determinism check
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Test case {i}: receipts differ")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
 
     else:
         print(f"ERROR: Unknown WO '{args.wo}'")

@@ -143,8 +143,8 @@
   **Red-team tests:** attempt “most frequent in test” color selection → receipts must expose invalid provenance.
   **Gotchas:** selection must come from witness/unanimity, not “test guess”.
 
-## WO-pre-11
-### WO-04C — Witness conjugation to test Π-frame 
+## WO-pre-11 - refer to docs/WOs/WO-pre-11.md
+### WO-04C — Witness conjugation to test Π-frame ✅ COMPLETED
 ### WO-10A — Macro-Tiling Engine (bands + strict majority)
 ### WO-02S — Shape serialization helper (LOW)
 
