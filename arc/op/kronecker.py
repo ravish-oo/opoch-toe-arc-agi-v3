@@ -42,6 +42,8 @@ class KroneckerFitRc:
     reps: Dict[str, Tuple[int, int]] = field(default_factory=dict)  # train_id → (k_r, k_c)
     fit_verified_on: List[str] = field(default_factory=list)
     hash: str = ""
+    failure_reason: str = ""  # WO-11: Receipts expansion for algebraic debugging
+    failure_details: Dict[str, Any] = field(default_factory=dict)  # Per-training tile counts, etc
 
 
 def _compute_divisors(n: int) -> List[int]:
@@ -176,7 +178,10 @@ def fit_kronecker(
 
         if not minimal_tiles:
             # No valid tile found for this training
-            return False, KroneckerFitRc()
+            return False, KroneckerFitRc(
+                failure_reason="no_valid_tile_for_training",
+                failure_details={"failed_train_id": train_id, "output_shape": Y_raw.shape}
+            )
 
         tile_sizes_per_training[train_id] = set(minimal_tiles)
 
@@ -191,7 +196,12 @@ def fit_kronecker(
 
     if not common_tile_sizes:
         # No common tile size across trainings
-        return False, KroneckerFitRc()
+        return False, KroneckerFitRc(
+            failure_reason="no_common_tile_size",
+            failure_details={
+                "tile_sizes_per_training": {k: list(v) for k, v in tile_sizes_per_training.items()}
+            }
+        )
 
     # Step 3: Choose tile size (lex-smallest if multiple)
     # For ties, we need to extract tiles and compare bytes
@@ -229,13 +239,27 @@ def fit_kronecker(
 
     # Build receipt
     receipt_str = f"{base_tile_bytes.hex()}:{r0}:{c0}:{sorted(reps.items())}:{sorted(fit_verified_on)}"
-    rc = KroneckerFitRc(
-        base_tile=base_tile_bytes.hex(),
-        tile_shape=(r0, c0),
-        reps=reps,
-        fit_verified_on=fit_verified_on,
-        hash=hash_bytes(receipt_str.encode())
-    )
+
+    if ok:
+        rc = KroneckerFitRc(
+            base_tile=base_tile_bytes.hex(),
+            tile_shape=(r0, c0),
+            reps=reps,
+            fit_verified_on=fit_verified_on,
+            hash=hash_bytes(receipt_str.encode())
+        )
+    else:
+        # Partial verification failure
+        failed_trains = [tid for tid, _, _, _ in train_pairs if tid not in fit_verified_on]
+        rc = KroneckerFitRc(
+            base_tile=base_tile_bytes.hex(),
+            tile_shape=(r0, c0),
+            reps=reps,
+            fit_verified_on=fit_verified_on,
+            hash=hash_bytes(receipt_str.encode()),
+            failure_reason="verification_failed",
+            failure_details={"failed_train_ids": failed_trains}
+        )
 
     return ok, rc
 

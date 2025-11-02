@@ -21,7 +21,7 @@ import sys
 import platform
 from blake3 import blake3
 
-from arc.op import pi, shape, truth, witness, copy, unanimity, meet, families, components, tiebreak, border_scalar, pooled_blocks, markers_grid, slice_stack, kronecker
+from arc.op import pi, shape, truth, witness, copy, unanimity, meet, families, components, tiebreak, border_scalar, pooled_blocks, markers_grid, slice_stack, kronecker, kronecker_mask
 from arc.op.receipts import ShapeRc
 from arc.op.hash import hash_bytes
 
@@ -105,9 +105,30 @@ def solve_task(
 
     Xt_list, Xstar_t, Pi_test, pi_rc = present_all(train_X_raw, Xstar_raw)
 
-    # Outputs are already in Π frame (from WO-01 contract)
-    # For now, assume outputs match (we'll verify in shape step)
-    Yt_list = train_Y_raw
+    # WO-10K fix: Transform outputs to Π frame to match inputs
+    # Apply same palette + pose + anchor to each training output
+    Yt_list = []
+    for i, Y_raw in enumerate(train_Y_raw):
+        # Get transform for this training grid
+        train_grid_rc = pi_rc.per_grid[i]
+        assert train_grid_rc["kind"] == "train" and train_grid_rc["index"] == i
+
+        # Apply palette mapping
+        from arc.op.palette import apply_palette_map
+        Y_pal = apply_palette_map(Y_raw, Pi_test.map)
+
+        # Apply D4 pose
+        from arc.op.d4 import apply_pose
+        Y_posed = apply_pose(Y_pal, train_grid_rc["pose_id"])
+
+        # Apply anchor
+        from arc.op.anchor import anchor_to_origin, AnchorRc
+        anchor_rc = AnchorRc(train_grid_rc["anchor"]["dr"], train_grid_rc["anchor"]["dc"])
+        # For outputs, we anchor using the OUTPUT's foreground, not the input's anchor
+        # So we compute a fresh anchor for this output
+        Y_anchored, _ = anchor_to_origin(Y_posed)
+
+        Yt_list.append(Y_anchored)
 
     # Verify Π contract (idempotent, inputs-only palette)
     if pi_rc.palette.scope != "inputs_only":
@@ -264,13 +285,17 @@ def solve_task(
     witness_rc = None
     tie_rc = None
 
+    # Track all engine trials for receipts (WO-11 receipts expansion)
+    engine_trials = []
+
     # Decision: Try engines if shape contradictory or witness fails
     # For WO-11 MVP, we'll try engines first, then fall back to witness
 
     # Try engines in frozen order (WO-11.md:66)
-    # Frozen spec: ["border_scalar", "window_dict.column", "macro_tiling", "pooled_blocks", "markers_grid", "slice_stack", "kronecker"]
+    # Frozen spec: ["border_scalar", "window_dict.column", "macro_tiling", "pooled_blocks", "markers_grid", "slice_stack", "kronecker", "kronecker_mask"]
     # Note: "window_dict.column" implemented as "column_dict" per WO-10
-    engine_names = ["border_scalar", "column_dict", "macro_tiling", "pooled_blocks", "markers_grid", "slice_stack", "kronecker"]
+    # WO-10K: Added "kronecker_mask" for mask-Kronecker law (Y = (X!=0) ⊗ X)
+    engine_names = ["border_scalar", "column_dict", "macro_tiling", "pooled_blocks", "markers_grid", "slice_stack", "kronecker", "kronecker_mask"]
 
     for engine_name in engine_names:
         if engine_name == "border_scalar":
@@ -292,6 +317,14 @@ def solve_task(
                 law_status = "engine"
                 engine_used = engine_name
 
+                # Track success
+                engine_trials.append({
+                    "engine": engine_name,
+                    "fit_ok": True,
+                    "apply_ok": True,
+                    "succeeded": True
+                })
+
                 # Update shape if it was contradictory
                 if shape_contradictory:
                     R_star, C_star = apply_rc["output_shape"]
@@ -312,6 +345,15 @@ def solve_task(
                 }
                 hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
                 break
+            else:
+                # Fit failed
+                engine_trials.append({
+                    "engine": engine_name,
+                    "fit_ok": False,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": "fit_failed"
+                })
 
         elif engine_name == "pooled_blocks":
             # Fit pooled_blocks engine
@@ -347,6 +389,14 @@ def solve_task(
                         law_status = "engine"
                         engine_used = engine_name
 
+                        # Track success
+                        engine_trials.append({
+                            "engine": engine_name,
+                            "fit_ok": True,
+                            "apply_ok": True,
+                            "succeeded": True
+                        })
+
                         # Update shape if it was contradictory
                         if shape_contradictory:
                             R_star, C_star = apply_rc["output_shape"]
@@ -370,6 +420,33 @@ def solve_task(
                         }
                         hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
                         break
+                    else:
+                        # Apply failed: shape_mismatch
+                        engine_trials.append({
+                            "engine": engine_name,
+                            "fit_ok": True,
+                            "apply_ok": False,
+                            "succeeded": False,
+                            "reason": "shape_mismatch"
+                        })
+                else:
+                    # Fit failed
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": False,
+                        "apply_ok": None,
+                        "succeeded": False,
+                        "reason": "fit_failed"
+                    })
+            else:
+                # Truth computation failed
+                engine_trials.append({
+                    "engine": engine_name,
+                    "fit_ok": None,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": "truth_failed"
+                })
 
         elif engine_name == "markers_grid":
             # Fit markers_grid engine
@@ -405,6 +482,14 @@ def solve_task(
                         law_status = "engine"
                         engine_used = engine_name
 
+                        # Track success
+                        engine_trials.append({
+                            "engine": engine_name,
+                            "fit_ok": True,
+                            "apply_ok": True,
+                            "succeeded": True
+                        })
+
                         # Update shape if it was contradictory
                         if shape_contradictory:
                             R_star, C_star = apply_rc["output_shape"]
@@ -426,6 +511,34 @@ def solve_task(
                         }
                         hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
                         break
+                    else:
+                        # Apply failed
+                        reason = "error" if apply_rc.get("error") else "shape_mismatch"
+                        engine_trials.append({
+                            "engine": engine_name,
+                            "fit_ok": True,
+                            "apply_ok": False,
+                            "succeeded": False,
+                            "reason": reason
+                        })
+                else:
+                    # Fit failed
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": False,
+                        "apply_ok": None,
+                        "succeeded": False,
+                        "reason": "fit_failed"
+                    })
+            else:
+                # Truth computation failed
+                engine_trials.append({
+                    "engine": engine_name,
+                    "fit_ok": None,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": "truth_failed"
+                })
 
         elif engine_name == "slice_stack":
             # Fit slice_stack engine
@@ -461,6 +574,14 @@ def solve_task(
                         law_status = "engine"
                         engine_used = engine_name
 
+                        # Track success
+                        engine_trials.append({
+                            "engine": engine_name,
+                            "fit_ok": True,
+                            "apply_ok": True,
+                            "succeeded": True
+                        })
+
                         # Update shape if it was contradictory
                         if shape_contradictory:
                             R_star, C_star = apply_rc["output_shape"]
@@ -483,6 +604,34 @@ def solve_task(
                         }
                         hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
                         break
+                    else:
+                        # Apply failed
+                        reason = "error" if apply_rc.get("error") else "shape_mismatch"
+                        engine_trials.append({
+                            "engine": engine_name,
+                            "fit_ok": True,
+                            "apply_ok": False,
+                            "succeeded": False,
+                            "reason": reason
+                        })
+                else:
+                    # Fit failed
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": False,
+                        "apply_ok": None,
+                        "succeeded": False,
+                        "reason": "fit_failed"
+                    })
+            else:
+                # Truth computation failed
+                engine_trials.append({
+                    "engine": engine_name,
+                    "fit_ok": None,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": "truth_failed"
+                })
 
         elif engine_name == "kronecker":
             # Fit kronecker engine
@@ -509,6 +658,14 @@ def solve_task(
                     law_status = "engine"
                     engine_used = engine_name
 
+                    # Track success
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": True,
+                        "apply_ok": True,
+                        "succeeded": True
+                    })
+
                     # Update shape if it was contradictory
                     if shape_contradictory:
                         R_star, C_star = apply_rc["output_shape"]
@@ -528,6 +685,105 @@ def solve_task(
                     }
                     hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
                     break
+                else:
+                    # Apply failed
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": True,
+                        "apply_ok": False,
+                        "succeeded": False,
+                        "reason": "error"
+                    })
+            else:
+                # Fit failed - include detailed failure info from receipt
+                trial = {
+                    "engine": engine_name,
+                    "fit_ok": False,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": "fit_failed"
+                }
+                # WO-11: Add detailed failure diagnostics if available
+                if hasattr(fit_rc, 'failure_reason') and fit_rc.failure_reason:
+                    trial["failure_reason"] = fit_rc.failure_reason
+                if hasattr(fit_rc, 'failure_details') and fit_rc.failure_details:
+                    trial["failure_details"] = fit_rc.failure_details
+                engine_trials.append(trial)
+
+        elif engine_name == "kronecker_mask":
+            # WO-10K: Fit kronecker_mask engine (mask-Kronecker: Y = (X!=0) ⊗ X)
+            train_pairs_for_fit = [
+                (train_ids[i], Xt, Yt, None)
+                for i, (Xt, Yt) in enumerate(zip(Xt_list, Yt_list))
+            ]
+            ok, fit_rc = kronecker_mask.fit_kronecker_mask(train_pairs_for_fit)
+
+            if ok:
+                # Apply to test
+                Yt_kron_mask, apply_rc = kronecker_mask.apply_kronecker_mask(
+                    Xstar_t,
+                    None,
+                    fit_rc,
+                    expected_shape=(R_star, C_star) if not shape_contradictory else None
+                )
+
+                if not apply_rc.get("error"):
+                    # Engine succeeded
+                    law_layer_values = Yt_kron_mask
+                    law_layer_mask = None  # Full frame
+                    law_status = "engine"
+                    engine_used = engine_name
+
+                    # Track success
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": True,
+                        "apply_ok": True,
+                        "succeeded": True
+                    })
+
+                    # Update shape if it was contradictory
+                    if shape_contradictory:
+                        R_star, C_star = apply_rc["shape"]
+                        sections["shape"]["R_star"] = R_star
+                        sections["shape"]["C_star"] = C_star
+                        sections["shape"]["shape_source"] = "engine"
+
+                    sections["engines"] = {
+                        "used": engine_name,
+                        "fit": {
+                            "final_shape": list(fit_rc.final_shape),
+                            "fit_verified_on": fit_rc.fit_verified_on,
+                            "hash": fit_rc.hash
+                        },
+                        "apply": apply_rc,
+                    }
+                    hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
+                    break
+                else:
+                    # Apply failed
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": True,
+                        "apply_ok": False,
+                        "succeeded": False,
+                        "reason": "error"
+                    })
+            else:
+                # Fit failed - include detailed failure info from receipt
+                trial = {
+                    "engine": engine_name,
+                    "fit_ok": False,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": "fit_failed"
+                }
+                # WO-11: Add detailed failure diagnostics if available
+                if hasattr(fit_rc, 'failure_reason') and fit_rc.failure_reason:
+                    trial["failure_reason"] = fit_rc.failure_reason
+                if hasattr(fit_rc, 'failure_details') and fit_rc.failure_details:
+                    trial["failure_details"] = fit_rc.failure_details
+                engine_trials.append(trial)
 
         elif engine_name == "column_dict":
             # Fit column_dict engine
@@ -544,6 +800,14 @@ def solve_task(
                     law_status = "engine"
                     engine_used = engine_name
 
+                    # Track success
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": True,
+                        "apply_ok": True,
+                        "succeeded": True
+                    })
+
                     # Update shape if it was contradictory
                     if shape_contradictory:
                         R_star, C_star = apply_rc.final_shape
@@ -558,6 +822,24 @@ def solve_task(
                     }
                     hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
                     break
+                else:
+                    # Apply failed
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": True,
+                        "apply_ok": False,
+                        "succeeded": False,
+                        "reason": "apply_failed"
+                    })
+            else:
+                # Fit failed
+                engine_trials.append({
+                    "engine": engine_name,
+                    "fit_ok": False,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": "fit_failed"
+                })
 
         elif engine_name == "macro_tiling":
             # Fit macro_tiling engine
@@ -573,6 +855,13 @@ def solve_task(
 
             if truth_list is None:
                 # Can't fit macro-tiling without truth
+                engine_trials.append({
+                    "engine": engine_name,
+                    "fit_ok": None,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": "truth_failed"
+                })
                 continue
 
             fit_rc = families.fit_macro_tiling(Xt_list, Yt_list, truth_list)
@@ -588,6 +877,14 @@ def solve_task(
                     law_status = "engine"
                     engine_used = engine_name
 
+                    # Track success
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": True,
+                        "apply_ok": True,
+                        "succeeded": True
+                    })
+
                     # Update shape if it was contradictory
                     if shape_contradictory:
                         R_star, C_star = apply_rc.final_shape
@@ -602,6 +899,24 @@ def solve_task(
                     }
                     hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
                     break
+                else:
+                    # Apply failed
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": True,
+                        "apply_ok": False,
+                        "succeeded": False,
+                        "reason": "apply_failed"
+                    })
+            else:
+                # Fit failed
+                engine_trials.append({
+                    "engine": engine_name,
+                    "fit_ok": False,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": "fit_failed"
+                })
 
     # Storage for witness results
     phi_law = None
@@ -623,11 +938,15 @@ def solve_task(
                 "train_id": train_ids[i],
                 "phi_pieces": phi_pieces,
                 "sigma": sigma,
-                "receipt": train_rc
+                "receipt": train_rc,
+                "geometric_trials": train_rc.phi.geometric_trials if train_rc.phi and hasattr(train_rc.phi, 'geometric_trials') else []
             })
 
-            # Check if witness solving failed
-            if phi_pieces is None and sigma.lehmer == []:
+            # Check if witness solving truly failed
+            # Summary witnesses have phi_pieces=None but are still valid
+            # (they contribute via unanimity, not law)
+            # Only fail if the witness couldn't be computed at all
+            if train_rc.kind != "summary" and (phi_pieces is None and sigma.lehmer == []):
                 witness_ok = False
                 break
 
@@ -663,7 +982,7 @@ def solve_task(
             else:  # "contradictory"
                 law_status = "witness_contradictory"
 
-            # Store witness receipts
+            # Store witness receipts (WO-04H: include actual phi_law and sigma_law for debugging)
             sections["witness"] = {
                 "status": "ok",
                 "trainings": [
@@ -671,18 +990,66 @@ def solve_task(
                         "train_id": tw["train_id"],
                         "phi_kind": "geometric" if tw["phi_pieces"] else "summary",
                         "sigma_domain_size": len(tw["sigma"].domain),
+                        "geometric_trials": tw.get("geometric_trials", []) if tw["phi_pieces"] else None,  # WO-05: tiling debug
+                        # WO-04S: A1/C2 receipts for summary witnesses
+                        "foreground_colors": tw["receipt"].foreground_colors if tw["receipt"].kind == "summary" else None,
+                        "background_colors": tw["receipt"].background_colors if tw["receipt"].kind == "summary" else None,
+                        "decision_rule": tw["receipt"].decision_rule if tw["receipt"].kind == "summary" else None,
+                        "per_color_counts": tw["receipt"].per_color_counts if tw["receipt"].kind == "summary" else None
                     }
                     for tw in train_witnesses
                 ],
                 "intersection_status": intersection_rc.status,
-                "intersection_admissible_count": intersection_rc.admissible_count
+                "intersection_admissible_count": intersection_rc.admissible_count,
+                # Include actual law for algebraic debugging
+                "phi_law": [
+                    {
+                        "comp_id": p.comp_id,
+                        "pose_id": p.pose_id,
+                        "dr": p.dr,
+                        "dc": p.dc,
+                        "r_per": p.r_per,
+                        "c_per": p.c_per,
+                        "r_res": p.r_res,
+                        "c_res": p.c_res
+                    }
+                    for p in phi_law
+                ] if phi_law else None,
+                "sigma_law": {
+                    "domain_colors": list(sigma_law.domain_colors) if sigma_law and hasattr(sigma_law, 'domain_colors') else None,
+                    "lehmer": list(sigma_law.lehmer) if sigma_law and hasattr(sigma_law, 'lehmer') else None
+                } if sigma_law else None
             }
         else:
-            # Witness solving failed
-            sections["witness"] = {"status": "failed"}
+            # Witness solving failed - include details for debugging
+            sections["witness"] = {
+                "status": "failed",
+                "trainings": [
+                    {
+                        "train_id": tw["train_id"],
+                        "phi_kind": "geometric" if tw["phi_pieces"] else "summary",
+                        "phi_pieces_count": len(tw["phi_pieces"]) if tw["phi_pieces"] else 0,
+                        "sigma_domain_size": len(tw["sigma"].domain) if hasattr(tw["sigma"], 'domain') else len(tw["sigma"].domain_colors) if hasattr(tw["sigma"], 'domain_colors') else 0,
+                        "sigma_lehmer_len": len(tw["sigma"].lehmer),
+                        "geometric_trials": tw.get("geometric_trials", []) if tw["receipt"].kind == "geometric" else None,
+                        # WO-04S: A1/C2 receipts for summary witnesses (for debugging failures)
+                        "foreground_colors": tw["receipt"].foreground_colors if tw["receipt"].kind == "summary" else None,
+                        "background_colors": tw["receipt"].background_colors if tw["receipt"].kind == "summary" else None,
+                        "decision_rule": tw["receipt"].decision_rule if tw["receipt"].kind == "summary" else None,
+                        "per_color_counts": tw["receipt"].per_color_counts if tw["receipt"].kind == "summary" else None
+                    }
+                    for tw in train_witnesses
+                ] if train_witnesses else [],
+                "failure_reason": "phi_none_and_sigma_empty" if train_witnesses else "no_trainings"
+            }
             law_status = "witness_failed"
 
         hashes["witness"] = hash_bytes(str(sections["witness"]).encode())
+
+    # Add engine trials to receipts (WO-11 receipts expansion for algebraic debugging)
+    if engine_trials:
+        sections["engine_trials"] = engine_trials
+        hashes["engine_trials"] = hash_bytes(str(sections["engine_trials"]).encode())
 
     # Tie-break (WO-08) if underdetermined
     if law_status == "witness_underdetermined":
@@ -900,34 +1267,88 @@ def solve_task(
                         law_layer_values[r, c] = source_color  # Identity fallback
                     law_mask[r, c] = True
         else:
-            # Geometric witness: apply φ component-wise
-            # phi_law is List[PhiPiece], comp_masks_test has component info
-            from arc.op.witness import PhiRc
+            # Geometric witness: apply φ globally (not component-wise)
+            # FIX: phi_law encodes transformation, apply to entire OUTPUT grid
+            # Each PhiPiece represents: Y = transform(X) where transform includes tiling
+            from arc.op.witness import _apply_d4_pose
 
-            # Build PhiRc for evaluation
-            phi_rc = PhiRc(
-                pieces=phi_law,
-                bbox_equal=[True] * len(phi_law),  # Already verified
-                domain_pixels=0  # Not needed for evaluation
-            )
+            # For witness law, φ maps entire input → entire output
+            # Y[r, c] = σ(X[φ^(-1)(r, c)])
 
-            # Evaluate φ for each output pixel
-            for r in range(R_star):
-                for c in range(C_star):
-                    # Evaluate φ*(p) → s (source pixel)
-                    source = _eval_phi_star_at_pixel((r, c), phi_rc, comp_masks_test)
+            # Apply each piece's transformation to fill law layer
+            # Pieces may have periodic tiling (r_per, c_per, r_res, c_res)
 
-                    if source is not None:
-                        s_r, s_c = source
-                        # Check bounds
-                        if 0 <= s_r < Xstar_t.shape[0] and 0 <= s_c < Xstar_t.shape[1]:
-                            source_color = Xstar_t[s_r, s_c]
-                            # Apply σ
+            for piece_idx, piece in enumerate(phi_law):
+                # Get component bbox from input
+                if piece.comp_id >= len(comp_masks_test):
+                    continue
+
+                comp_mask, r0_in, c0_in = comp_masks_test[piece.comp_id]
+                bbox_h, bbox_w = comp_mask.shape
+
+                # Get inverse transformation
+                inv_pose = {0: 0, 1: 3, 2: 2, 3: 1, 4: 4, 5: 5, 6: 6, 7: 7}
+                inv_pose_id = inv_pose[piece.pose_id]
+
+                # For each output pixel, try to map it back to this component
+                # The output bbox is tiled r_per × c_per times from input bbox
+                for r_out in range(R_star):
+                    for c_out in range(C_star):
+                        # Step 1: Handle tiling - map output pixel to tiled bbox position
+                        # If r_per > 1, output is tiled r_per times vertically
+                        # Output pixel r_out maps to position (r_out % (bbox_h * r_per))
+
+                        # But we need to work in the tiled output bbox space
+                        # The tiled bbox has dimensions (bbox_h * r_per, bbox_w * c_per)
+                        tiled_bbox_h = bbox_h * piece.r_per
+                        tiled_bbox_w = bbox_w * piece.c_per
+
+                        # Subtract translation (dr, dc are in tiled bbox coordinates)
+                        r_shifted = r_out - piece.dr
+                        c_shifted = c_out - piece.dc
+
+                        # Check if in tiled bbox bounds
+                        if not (0 <= r_shifted < tiled_bbox_h and 0 <= c_shifted < tiled_bbox_w):
+                            continue
+
+                        # Step 2: Apply inverse pose (in tiled bbox frame)
+                        from arc.op.witness import _apply_d4_pose
+                        # Create indicator grid with tiled dimensions
+                        indicator = np.zeros((tiled_bbox_h, tiled_bbox_w), dtype=bool)
+                        indicator[r_shifted, c_shifted] = True
+                        # Apply inverse pose
+                        transformed = _apply_d4_pose(indicator, inv_pose_id)
+                        # Find where the 1 is
+                        coords = np.argwhere(transformed)
+                        if len(coords) != 1:
+                            continue
+
+                        r_tiled, c_tiled = coords[0]
+
+                        # Step 3: Map from tiled bbox to base bbox using modulo
+                        # If tiling, pixel (r_tiled, c_tiled) maps to (r_tiled % bbox_h, c_tiled % bbox_w)
+                        r_bbox = r_tiled % bbox_h
+                        c_bbox = c_tiled % bbox_w
+
+                        # Check if this position is actually in the component mask
+                        if not (0 <= r_bbox < bbox_h and 0 <= c_bbox < bbox_w):
+                            continue
+                        if not comp_mask[r_bbox, c_bbox]:
+                            continue
+
+                        # Step 4: Convert bbox-local to global input coordinates
+                        r_in = r_bbox + r0_in
+                        c_in = c_bbox + c0_in
+
+                        # Step 4: Check if source is in input bounds
+                        if 0 <= r_in < Xstar_t.shape[0] and 0 <= c_in < Xstar_t.shape[1]:
+                            # Read input color and apply σ
+                            source_color = Xstar_t[r_in, c_in]
                             if source_color < len(sigma_lookup):
-                                law_layer_values[r, c] = sigma_lookup[source_color]
+                                law_layer_values[r_out, c_out] = sigma_lookup[source_color]
                             else:
-                                law_layer_values[r, c] = source_color  # Identity fallback
-                            law_mask[r, c] = True
+                                law_layer_values[r_out, c_out] = source_color
+                            law_mask[r_out, c_out] = True
 
     # ========================================================================
     # Step 7: Meet — compose with priority copy ▷ law ▷ unanimity ▷ bottom (WO-09)

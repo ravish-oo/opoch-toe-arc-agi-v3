@@ -541,29 +541,63 @@ def solve_witness_for_pair(
                 # Verify E2: exact bbox equality
                 ok = _verify_bbox_equality(X, Y, x_inv, y_inv, pose_id, dr, dc)
 
-                # Record trial (WO-04D)
-                geometric_trials.append({
-                    "comp_id": x_idx,
-                    "pose": pose_id,
-                    "dr": dr,
-                    "dc": dc,
-                    "ok": ok
-                })
-
                 if ok:
+                    # Detect periodic tiling (WO-05 fix)
+                    # If Y bbox is larger than X bbox after pose, detect tiling
+                    X_bbox_h, X_bbox_w = x_inv.bbox_h, x_inv.bbox_w
+                    Y_bbox_h, Y_bbox_w = y_inv.bbox_h, y_inv.bbox_w
+
+                    # After applying pose, check if dimensions match or need tiling
+                    # For poses that swap dimensions (1,3,5,7), swap X dimensions
+                    if pose_id in [1, 3, 5, 7]:  # rot90, rot270, flipH+rot90, flipH+rot270
+                        X_bbox_h, X_bbox_w = X_bbox_w, X_bbox_h
+
+                    # Detect tiling: Y_bbox should be multiple of X_bbox
+                    r_per = 1
+                    c_per = 1
+                    r_res = 0
+                    c_res = 0
+
+                    if Y_bbox_h > X_bbox_h and Y_bbox_h % X_bbox_h == 0:
+                        r_per = Y_bbox_h // X_bbox_h
+                    if Y_bbox_w > X_bbox_w and Y_bbox_w % X_bbox_w == 0:
+                        c_per = Y_bbox_w // X_bbox_w
+
+                    # Record trial with EXPANDED tiling debug info
+                    geometric_trials.append({
+                        "comp_id": x_idx,
+                        "pose": pose_id,
+                        "dr": dr,
+                        "dc": dc,
+                        "ok": ok,
+                        "X_bbox": [int(x_inv.bbox_h), int(x_inv.bbox_w)],
+                        "Y_bbox": [int(y_inv.bbox_h), int(y_inv.bbox_w)],
+                        "X_bbox_after_pose": [int(X_bbox_h), int(X_bbox_w)],
+                        "tiling_detected": [int(r_per), int(c_per)]
+                    })
+
                     pieces.append(PhiPiece(
                         comp_id=x_idx,
                         pose_id=pose_id,
                         dr=dr,
                         dc=dc,
-                        r_per=1,  # No periodic residues for now (WO-05)
-                        c_per=1,
-                        r_res=0,
-                        c_res=0
+                        r_per=r_per,  # Tiling factor (1 if no tiling)
+                        c_per=c_per,
+                        r_res=r_res,  # Residue class (0 for now)
+                        c_res=c_res
                     ))
                     bbox_equal.append(True)
                     found_match = True
                     break
+                else:
+                    # Record failed trial without tiling info
+                    geometric_trials.append({
+                        "comp_id": x_idx,
+                        "pose": pose_id,
+                        "dr": dr,
+                        "dc": dc,
+                        "ok": ok
+                    })
 
             if not found_match:
                 # Geometric witness failed for this component
@@ -572,6 +606,23 @@ def solve_witness_for_pair(
 
         if not geometric_ok:
             break
+
+    # Validate ALL components were matched (WO-04 contract: exact equality everywhere)
+    if geometric_ok and pieces:
+        # Check that ALL output components were explained
+        matched_Y_comp_ids = set()
+        for outline_hash in sorted(set(X_by_hash.keys()) & set(Y_by_hash.keys())):
+            X_comps = X_by_hash[outline_hash]
+            Y_comps = Y_by_hash[outline_hash]
+            # Count how many Y components were matched
+            n_matched = min(len(X_comps), len(Y_comps))
+            for i in range(n_matched):
+                matched_Y_comp_ids.add(Y_comps[i][0])  # y_idx
+
+        # If ANY output component is unmatched, geometric witness FAILS
+        total_Y_comps = len(Y_invs)
+        if len(matched_Y_comp_ids) < total_Y_comps:
+            geometric_ok = False  # Witness cannot explain all output pixels
 
     # If geometric succeeded, build geometric witness
     if geometric_ok and pieces:

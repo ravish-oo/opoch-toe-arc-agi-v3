@@ -571,6 +571,9 @@ def _compute_band_clusters(
         for i in range(1, len(sigs)):
             if sigs[i] != sigs[i - 1]:
                 edges.append(i)
+        # WO-05C: MUST include final edge (spec requires [0, ..., H] or [0, ..., W])
+        if not edges or edges[-1] != len(sigs):
+            edges.append(len(sigs))
         return edges
 
     row_clusters = band_edges_from_signatures(row_sigs)
@@ -886,6 +889,30 @@ def compute_truth_partition(
     # Step 6: Compute block histogram (B4 fix)
     uniq, counts = np.unique(labels, return_counts=True)
     block_hist = counts.tolist()
+
+    # WO-05C: Fail-fast checks for invalid truth state
+    # Check 1: Over-segmentation (per-pixel partition)
+    # Only warn for large grids (>10×10) since small grids can legitimately have per-pixel blocks
+    # due to different local tag signatures (n4_adj, parity, etc.)
+    if len(block_hist) == H * W and H * W > 100:
+        raise ValueError(
+            f"TRUTH_OVER_SEGMENTED: Partition has {len(block_hist)} blocks for {H}×{W} grid. "
+            f"Each pixel is its own block. This indicates tags are creating unique signatures "
+            f"for every pixel (likely including coordinates in tags). Initial partition must be "
+            f"by color only; refinement must use ONLY frozen local tags (no spatial coords)."
+        )
+
+    # Check 2: Band edges must include boundaries [0, ..., H] and [0, ..., W]
+    if not row_clusters or row_clusters[0] != 0 or row_clusters[-1] != H:
+        raise ValueError(
+            f"TRUTH_INVALID_ROW_EDGES: row_clusters must be edge array [0, ..., {H}]. "
+            f"Got: {row_clusters[:5]}...{row_clusters[-2:] if len(row_clusters) > 1 else []}"
+        )
+    if not col_clusters or col_clusters[0] != 0 or col_clusters[-1] != W:
+        raise ValueError(
+            f"TRUTH_INVALID_COL_EDGES: col_clusters must be edge array [0, ..., {W}]. "
+            f"Got: {col_clusters[:5]}...{col_clusters[-2:] if len(col_clusters) > 1 else []}"
+        )
 
     # Step 7: Compute partition hash
     partition_hash_val = _partition_hash(labels)

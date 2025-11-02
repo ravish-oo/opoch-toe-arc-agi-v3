@@ -32,6 +32,30 @@ from arc.runner import solve_task, RunRc
 from arc.op.hash import hash_bytes
 
 
+def load_solutions_json(data_dir: Path) -> Dict[str, np.ndarray]:
+    """
+    Load ground truth solutions from arc-agi_training_solutions.json.
+
+    Returns:
+        Dict mapping task_id -> oracle output array (or empty dict if not found)
+    """
+    solutions_path = data_dir / "arc-agi_training_solutions.json"
+    if not solutions_path.exists():
+        return {}
+
+    with open(solutions_path) as f:
+        solutions_raw = json.load(f)
+
+    # Convert to numpy arrays
+    solutions = {}
+    for task_id, outputs in solutions_raw.items():
+        # outputs is a list of grids (usually just 1 test case)
+        if outputs and len(outputs) > 0:
+            solutions[task_id] = np.array(outputs[0], dtype=np.uint8)
+
+    return solutions
+
+
 def load_arc_task(task_id: str, data_dir: Path) -> Dict[str, Any]:
     """
     Load ARC task from JSON file.
@@ -216,13 +240,22 @@ def run_batch(
     law_status_counts = {}
     result_counts = {}
 
+    # Load ground truth solutions from arc-agi_training_solutions.json
+    print(f"Loading solutions from {data_dir / 'arc-agi_training_solutions.json'}...")
+    solutions = load_solutions_json(data_dir)
+    print(f"Loaded {len(solutions)} solutions")
+    print()
+
     for i, task_id in enumerate(task_ids):
         print(f"[{i+1}/{len(task_ids)}] Running {task_id}...", end=" ", flush=True)
 
         try:
             # Load task
             task_data = load_arc_task(task_id, data_dir)
-            train_pairs, Xstar_raw, Ystar_oracle = task_to_arrays(task_data)
+            train_pairs, Xstar_raw, _ = task_to_arrays(task_data)
+
+            # Get oracle from solutions JSON
+            Ystar_oracle = solutions.get(task_id)
 
             # Run with determinism check
             result = run_task_with_determinism(task_id, train_pairs, Xstar_raw, Ystar_oracle)
