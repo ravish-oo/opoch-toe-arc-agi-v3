@@ -1861,6 +1861,201 @@ def run_wo09(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts"
     return all_receipts
 
 
+def run_wo10(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts") -> list[dict]:
+    """
+    WO-10: Family adapters (Column-Dictionary engine).
+
+    Contract (WO-10):
+    Fit Column-Dictionary engine (schema v1) on trainings:
+    - sig(j) = (has8, has5) for each column
+    - RLE squash signatures
+    - Build dict: sig → output column (exact, fail on conflicts)
+    - Verify reconstruction on all trainings
+    - Apply to test (fail-closed on unseen signatures)
+
+    Since WO-01/WO-05 full integration not ready, use synthetic test cases.
+
+    Test cases:
+    1. Perfect fit: all test sigs seen in training
+    2. Unseen signature: test has sig not in training dict
+    3. Conflict: same sig maps to different columns across trainings
+
+    Returns:
+        List of receipts (fit + apply per test case)
+    """
+    from arc.op.families import fit_column_dict, apply_column_dict
+    from arc.op.receipts import env_fingerprint
+    from arc.op.hash import hash_bytes
+
+    # Create synthetic test cases
+    test_cases = []
+
+    # Test 1: Perfect fit (4×4 grid with has8/has5 pattern)
+    # Training 1: columns with sigs (1,0), (0,1), (1,1), (0,0)
+    # Training 2: same pattern, same output
+    # Test: same pattern → should reconstruct
+    train1_Xt = np.array([
+        [8, 5, 8, 1],
+        [8, 5, 5, 2],
+        [1, 5, 8, 3],
+        [2, 1, 5, 4],
+    ], dtype=np.int64)
+    train1_Y = np.array([
+        [10, 20, 30, 40],
+        [11, 21, 31, 41],
+        [12, 22, 32, 42],
+    ], dtype=np.int64)
+
+    train2_Xt = np.array([
+        [8, 5, 8, 1],
+        [1, 5, 5, 2],
+        [8, 1, 8, 3],
+        [8, 5, 5, 4],
+    ], dtype=np.int64)
+    train2_Y = np.array([
+        [10, 20, 30, 40],
+        [11, 21, 31, 41],
+        [12, 22, 32, 42],
+    ], dtype=np.int64)
+
+    test_Xt = np.array([
+        [8, 5, 8, 1],
+        [8, 5, 5, 2],
+        [1, 5, 8, 3],
+    ], dtype=np.int64)
+
+    test_cases.append({
+        "name": "perfect_fit",
+        "train_Xt_list": [train1_Xt, train2_Xt],
+        "train_Y_list": [train1_Y, train2_Y],
+        "test_Xt": test_Xt,
+        "expected_fit_ok": True,
+        "expected_apply_ok": True,
+    })
+
+    # Test 2: Unseen signature (test has column with sig (1,1) when dict only has (1,0), (0,1), (0,0))
+    train3_Xt = np.array([
+        [8, 5, 1],
+        [8, 5, 2],
+        [1, 1, 3],
+    ], dtype=np.int64)
+    train3_Y = np.array([
+        [10, 20, 30],
+        [11, 21, 31],
+    ], dtype=np.int64)
+
+    test2_Xt = np.array([
+        [8, 5, 8],  # sigs: (1,0), (0,1), (1,1) - last sig unseen
+        [8, 5, 5],
+        [1, 1, 8],
+    ], dtype=np.int64)
+
+    test_cases.append({
+        "name": "unseen_signature",
+        "train_Xt_list": [train3_Xt],
+        "train_Y_list": [train3_Y],
+        "test_Xt": test2_Xt,
+        "expected_fit_ok": True,
+        "expected_apply_ok": False,  # unseen sig (1,1)
+    })
+
+    # Test 3: Conflict (same sig maps to different columns)
+    train4_Xt = np.array([
+        [8, 5],
+        [8, 5],
+    ], dtype=np.int64)
+    train4_Y = np.array([
+        [10, 20],
+        [11, 21],
+    ], dtype=np.int64)
+
+    train5_Xt = np.array([
+        [8, 5],
+        [8, 5],
+    ], dtype=np.int64)
+    train5_Y = np.array([
+        [10, 99],  # sig (0,1) maps to different column than train4
+        [11, 98],
+    ], dtype=np.int64)
+
+    test3_Xt = np.array([
+        [8, 5],
+        [8, 5],
+    ], dtype=np.int64)
+
+    test_cases.append({
+        "name": "signature_conflict",
+        "train_Xt_list": [train4_Xt, train5_Xt],
+        "train_Y_list": [train4_Y, train5_Y],
+        "test_Xt": test3_Xt,
+        "expected_fit_ok": False,  # conflict on sig (0,1)
+        "expected_apply_ok": False,
+    })
+
+    # Run test cases
+    env = env_fingerprint()
+    all_receipts = []
+
+    for tc in test_cases:
+        # Fit
+        fit_rc = fit_column_dict(
+            train_Xt_list=tc["train_Xt_list"],
+            train_Y_list=tc["train_Y_list"],
+        )
+
+        # Verify expected fit outcome
+        if fit_rc.ok != tc["expected_fit_ok"]:
+            raise ValueError(
+                f"WO-10 test '{tc['name']}' fit failed: "
+                f"expected fit_ok={tc['expected_fit_ok']}, got {fit_rc.ok}"
+            )
+
+        # Apply (if fit succeeded)
+        apply_rc = None
+        if fit_rc.ok:
+            apply_rc = apply_column_dict(
+                test_Xt=tc["test_Xt"],
+                fit_rc=fit_rc,
+            )
+
+            # Verify expected apply outcome
+            if apply_rc.ok != tc["expected_apply_ok"]:
+                raise ValueError(
+                    f"WO-10 test '{tc['name']}' apply failed: "
+                    f"expected apply_ok={tc['expected_apply_ok']}, got {apply_rc.ok}"
+                )
+
+        # Build receipt
+        stage_hashes = {
+            "fit": hash_bytes(str(fit_rc.receipt).encode()),
+        }
+        if apply_rc:
+            stage_hashes["apply"] = hash_bytes(str(apply_rc.receipt).encode())
+
+        notes = {
+            "test_case": tc["name"],
+            "fit": fit_rc.receipt,
+            "apply": apply_rc.receipt if apply_rc else None,
+        }
+
+        receipt = {
+            "env": {
+                "platform": env.platform,
+                "endian": env.endian,
+                "py_version": env.py_version,
+                "blake3_version": env.blake3_version,
+                "compiler_version": env.compiler_version,
+                "build_flags_hash": env.build_flags_hash,
+            },
+            "stage_hashes": stage_hashes,
+            "notes": notes,
+        }
+
+        all_receipts.append(receipt)
+
+    return all_receipts
+
+
 def main():
     """
     Run WO determinism harness.
@@ -2135,6 +2330,40 @@ def main():
             print(f"Law pixels:         {total_law}")
             print(f"Unanimity pixels:   {total_unanimity}")
             print(f"Bottom pixels:      {total_bottom}")
+            print(f"{'='*60}\n")
+
+    elif args.wo == "WO-10":
+        print(f"Running {args.wo} on test cases (run 1/2)...")
+        r1_list = run_wo10(args.data, args.subset, args.receipts)
+        print(f"Running {args.wo} on test cases (run 2/2)...")
+        r2_list = run_wo10(args.data, args.subset, args.receipts)
+
+        # Determinism check: compare lists
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Test case {i}: receipts differ")
+                    if a.get("stage_hashes") != b.get("stage_hashes"):
+                        print(f"    Run 1 hashes: {a.get('stage_hashes')}")
+                        print(f"    Run 2 hashes: {b.get('stage_hashes')}")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
+
+        # Print summary
+        if results:
+            n_tests = len(results) // 2
+            fit_ok_count = sum(1 for r in results[:n_tests] if r.get("notes", {}).get("fit", {}).get("ok", False))
+            apply_ok_count = sum(1 for r in results[:n_tests] if r.get("notes", {}).get("apply") and r["notes"]["apply"].get("ok", False))
+
+            print(f"\n{'='*60}")
+            print(f"WO-10 Summary")
+            print(f"{'='*60}")
+            print(f"Test cases:         {n_tests}")
+            print(f"Fit succeeded:      {fit_ok_count}")
+            print(f"Apply succeeded:    {apply_ok_count}")
             print(f"{'='*60}\n")
 
     else:

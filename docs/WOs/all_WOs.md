@@ -118,7 +118,7 @@
   **Red-team tests:** reorder candidate enumeration; chosen_idx unchanged.
   **Gotchas:** object_breaks counts *increases* only; merges ignored.
 
-## WO-09 — Meet writer (copy ▷ law ▷ unanimity ▷ bottom) (BLOCKER)
+## WO-09 — Meet writer (copy ▷ law ▷ unanimity ▷ bottom) (BLOCKER) ✅ COMPLETED
 
 **Goal:** one-pass, idempotent write; bottom=0.
 **Delivers:**
