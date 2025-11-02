@@ -33,14 +33,16 @@ class PhiRc:
     """
     Geometric φ receipt.
 
-    Contract:
+    Contract (WO-04D):
     - pieces: list of PhiPiece per component
     - bbox_equal: per-piece equality verification (E2)
     - domain_pixels: total pixels covered by φ
+    - geometric_trials: all (pose, dr, dc) trials with ok status
     """
     pieces: List[PhiPiece]
     bbox_equal: List[bool]  # per-piece E2 proof
     domain_pixels: int      # sum of pixels across pieces
+    geometric_trials: List[Dict] = None  # WO-04D: [{"comp_id":i, "pose":p, "dr":dr, "dc":dc, "ok":bool}, ...]
 
 
 @dataclass
@@ -52,10 +54,18 @@ class SigmaRc:
     - domain_colors: colors touched by law
     - lehmer: Lehmer code encoding
     - moved_count: recolor_bits (tie-break cost)
+
+    WO-04H: Backward compatibility shim for .domain (was renamed to domain_colors)
     """
     domain_colors: List[int]
     lehmer: List[int]
     moved_count: int  # number of moved colors (recolor_bits)
+
+    # WO-04H: Backward-compatible property (some code still uses .domain)
+    @property
+    def domain(self) -> List[int]:
+        """Alias for domain_colors (backward compatibility)."""
+        return self.domain_colors
 
 
 @dataclass
@@ -89,11 +99,25 @@ class ConjugatedRc:
     Receipts:
     - transform_receipts: per-piece old→new (pose_id, dr, dc)
     - conjugation_hash: BLAKE3(phi_star serialized)
+
+    WO-04H: Backward compatibility shims for .lehmer and .domain_colors
     """
     phi_star: Optional[PhiRc]
     sigma: SigmaRc
     transform_receipts: Optional[List[Dict]] = None  # Per-piece conjugation details
     conjugation_hash: Optional[str] = None           # BLAKE3 of phi_star
+
+    # WO-04H: Backward-compatible property (some code still uses .lehmer directly)
+    @property
+    def lehmer(self) -> List[int]:
+        """Alias for sigma.lehmer (backward compatibility)."""
+        return self.sigma.lehmer
+
+    # SWEEP4 fix: Backward-compatible property (some code expects .domain_colors on ConjugatedRc)
+    @property
+    def domain_colors(self) -> List[int]:
+        """Alias for sigma.domain_colors (backward compatibility)."""
+        return self.sigma.domain_colors
 
 
 @dataclass
@@ -107,6 +131,38 @@ class IntersectionRc:
     """
     status: str  # "singleton" | "underdetermined" | "contradictory"
     admissible_count: int
+
+
+def _perm_to_lehmer(perm: List[int]) -> List[int]:
+    """
+    Convert permutation to Lehmer code.
+
+    Contract (WO-04E):
+    Given permutation σ in one-line notation (perm[i] = σ(i)),
+    compute Lehmer code (factorial number system representation).
+
+    Algorithm:
+    For position i, the Lehmer code digit is the count of how many
+    elements to the right of position i have values smaller than perm[i].
+
+    Args:
+        perm: One-line permutation where perm[i] = σ(i)
+
+    Returns:
+        lehmer: Lehmer code
+    """
+    if not perm:
+        return []
+
+    n = len(perm)
+    lehmer = []
+
+    for i in range(n):
+        # Count how many elements to the right are smaller than perm[i]
+        count = sum(1 for j in range(i + 1, n) if perm[j] < perm[i])
+        lehmer.append(count)
+
+    return lehmer
 
 
 def _apply_d4_pose(G: np.ndarray, pose_id: int) -> np.ndarray:
@@ -152,28 +208,61 @@ def _enumerate_phi_candidates(
     """
     Enumerate (pose_id, dr, dc) candidates for component alignment.
 
-    Contract (01_engineering_spec.md §4):
+    Contract (01_engineering_spec.md §4 & WO-04D):
     "Enumerate 8 D4 ops; for each, compute translation Δ that aligns bbox anchors"
 
-    For now: simple version trying identity translation.
-    TODO: expand with lattice residues when WO-05 provides periods.
+    Algorithm (WO-04D):
+    1. For each pose_id ∈ {0..7}:
+       a. Apply pose to X_bbox → X_posed
+       b. Check if X_posed.shape == Y_bbox.shape (same-shape coframe requirement)
+       c. If yes, translation is (0,0) in bbox-local coords (anchors both at origin)
+       d. Accept (pose_id, 0, 0) as candidate
+
+    Note: Translation (dr, dc) is in bbox-local coordinates. Since bboxes are extracted
+    with top-left at (0,0) in local frame, the translation that "aligns anchors" is
+    always (0,0) when shapes match. Global translation between components is implicit
+    in component matching, not stored in PhiPiece.
+
+    Residue enumeration (WO-04R) will be added later for periodic coframes.
 
     Args:
-        X_bbox: source component bbox
-        Y_bbox: target component bbox
-        X_color: source color
-        Y_color: target color
+        X_bbox: source component bbox (extracted to local coordinates)
+        Y_bbox: target component bbox (extracted to local coordinates)
+        X_color: source color (unused, for future color-dependent logic)
+        Y_color: target color (unused, for future color-dependent logic)
 
     Returns:
-        List of (pose_id, dr, dc) candidates
+        List of (pose_id, dr, dc) candidates where posed X shape matches Y shape
     """
     candidates = []
 
-    # Try all 8 D4 poses
+    # Try all 8 D4 poses (WO-04D)
     for pose_id in range(8):
-        # For now, try identity translation (0, 0)
-        # In full implementation, would enumerate translations that align masks
-        candidates.append((pose_id, 0, 0))
+        # Apply pose to X bbox
+        X_posed = _apply_d4_pose(X_bbox, pose_id)
+
+        # Require same-shape coframe (Math Spec: component coframes are isomorphic)
+        if X_posed.shape != Y_bbox.shape:
+            continue
+
+        # Compute translation Δ that aligns component content (WO-04D)
+        # Find anchor (top-left) of non-zero pixels in both arrays
+        X_nonzero = np.argwhere(X_posed != 0)
+        Y_nonzero = np.argwhere(Y_bbox != 0)
+
+        if len(X_nonzero) == 0 or len(Y_nonzero) == 0:
+            # Empty component - use (0,0) as default
+            dr, dc = 0, 0
+        else:
+            # Compute anchor as top-left of non-zero pixels
+            X_anchor = X_nonzero.min(axis=0)  # [r, c]
+            Y_anchor = Y_nonzero.min(axis=0)  # [r, c]
+
+            # Translation that aligns content anchors
+            dr = int(Y_anchor[0] - X_anchor[0])
+            dc = int(Y_anchor[1] - X_anchor[1])
+
+        candidates.append((pose_id, dr, dc))
 
     return candidates
 
@@ -188,12 +277,15 @@ def _verify_bbox_equality(
     dc: int
 ) -> bool:
     """
-    Verify exact pixelwise equality on component bbox.
+    Verify φ candidate admits consistent σ on component bbox.
 
-    Contract (02_determinism_addendum.md §3 line 121):
-    "Verification: after applying candidate (pose,Δ,residue), compare pixelwise across bbox; must be equal"
+    Contract (WO-04G + Engg Spec §4):
+    "verify value equality on every pixel" BUT we must allow for σ recoloring!
 
-    Contract (E2): Every φ piece must pass per-component bbox equality
+    Algorithm:
+    1. Apply (pose, dr, dc) to X bbox
+    2. Check if there EXISTS a consistent color mapping σ: X∘φ → Y
+    3. Accept iff consistent (no pixel maps to two different colors)
 
     Args:
         X: full X grid
@@ -204,7 +296,7 @@ def _verify_bbox_equality(
         dr, dc: translation delta
 
     Returns:
-        True if exact equality holds on bbox
+        True if φ candidate admits consistent σ
     """
     # Extract X component bbox
     X_r0, X_c0 = X_inv.anchor_r, X_inv.anchor_c
@@ -221,13 +313,52 @@ def _verify_bbox_equality(
     # Apply D4 pose to X bbox
     X_transformed = _apply_d4_pose(X_bbox, pose_id)
 
-    # Apply translation (dr, dc)
-    # For now, require shapes match after pose (simplified)
+    # Require same-shape coframe (Math Spec: component coframes are isomorphic)
     if X_transformed.shape != Y_bbox.shape:
         return False
 
-    # Exact pixelwise equality check (E2)
-    return bool(np.array_equal(X_transformed, Y_bbox))
+    # Apply translation (WO-04D)
+    # Translation (dr, dc) shifts X_transformed to align with Y_bbox
+    if dr != 0 or dc != 0:
+        # Apply translation by creating shifted array
+        # dr > 0 means shift DOWN, dc > 0 means shift RIGHT
+        h, w = X_transformed.shape
+        X_shifted = np.zeros_like(X_transformed)
+
+        # Compute source and destination bounds
+        src_r0 = max(0, -dr)
+        src_r1 = min(h, h - dr)
+        src_c0 = max(0, -dc)
+        src_c1 = min(w, w - dc)
+
+        dst_r0 = max(0, dr)
+        dst_r1 = min(h, h + dr)
+        dst_c0 = max(0, dc)
+        dst_c1 = min(w, w + dc)
+
+        # Copy shifted content
+        if src_r1 > src_r0 and src_c1 > src_c0:
+            X_shifted[dst_r0:dst_r1, dst_c0:dst_c1] = X_transformed[src_r0:src_r1, src_c0:src_c1]
+
+        X_transformed = X_shifted
+
+    # Check if consistent σ exists (WO-04G fix)
+    # Build color mapping and check consistency
+    color_mapping = {}
+    for r in range(X_transformed.shape[0]):
+        for c in range(X_transformed.shape[1]):
+            x_color = int(X_transformed[r, c])
+            y_color = int(Y_bbox[r, c])
+
+            if x_color in color_mapping:
+                # Check consistency
+                if color_mapping[x_color] != y_color:
+                    return False  # Inconsistent mapping
+            else:
+                color_mapping[x_color] = y_color
+
+    # Consistent mapping exists → accept this φ candidate
+    return True
 
 
 def _shift_row(row: np.ndarray, dc: int) -> np.ndarray:
@@ -323,7 +454,8 @@ def _try_row_coframe(X: np.ndarray, Y: np.ndarray) -> Tuple[Optional[List[PhiPie
     phi_rc = PhiRc(
         pieces=pieces,
         bbox_equal=bbox_equal,
-        domain_pixels=H * W  # entire grid covered
+        domain_pixels=H * W,  # entire grid covered
+        geometric_trials=None  # Row-coframe path has no component trials
     )
 
     witness_rc = TrainWitnessRc(
@@ -385,6 +517,7 @@ def solve_witness_for_pair(
     # Try geometric witness: match by outline_hash
     pieces: List[PhiPiece] = []
     bbox_equal: List[bool] = []
+    geometric_trials: List[Dict] = []  # WO-04D: record all trials
     geometric_ok = True
 
     # Match components by outline_hash (stable matching from WO-03)
@@ -397,14 +530,27 @@ def solve_witness_for_pair(
             # Try candidate (pose_id, dr, dc) values
             found_match = False
 
-            for pose_id, dr, dc in _enumerate_phi_candidates(
+            candidates = _enumerate_phi_candidates(
                 X[x_inv.anchor_r:x_inv.anchor_r+x_inv.bbox_h, x_inv.anchor_c:x_inv.anchor_c+x_inv.bbox_w],
                 Y[y_inv.anchor_r:y_inv.anchor_r+y_inv.bbox_h, y_inv.anchor_c:y_inv.anchor_c+y_inv.bbox_w],
                 x_inv.color,
                 y_inv.color
-            ):
+            )
+
+            for pose_id, dr, dc in candidates:
                 # Verify E2: exact bbox equality
-                if _verify_bbox_equality(X, Y, x_inv, y_inv, pose_id, dr, dc):
+                ok = _verify_bbox_equality(X, Y, x_inv, y_inv, pose_id, dr, dc)
+
+                # Record trial (WO-04D)
+                geometric_trials.append({
+                    "comp_id": x_idx,
+                    "pose": pose_id,
+                    "dr": dr,
+                    "dc": dc,
+                    "ok": ok
+                })
+
+                if ok:
                     pieces.append(PhiPiece(
                         comp_id=x_idx,
                         pose_id=pose_id,
@@ -429,21 +575,156 @@ def solve_witness_for_pair(
 
     # If geometric succeeded, build geometric witness
     if geometric_ok and pieces:
-        # Compute domain pixels
-        domain_pixels = sum(inv.area for inv in X_invs[:len(pieces)])
+        # Compute domain pixels accurately (WO-04G)
+        # Sum areas of actually matched components
+        # piece.comp_id is the index into X_invs
+        matched_comp_ids = {p.comp_id for p in pieces}
+        domain_pixels = sum(X_invs[cid].area for cid in matched_comp_ids)
 
-        # Compute σ (for now, identity permutation)
-        domain_colors = sorted(set(inv.color for inv in X_invs))
-        sigma = SigmaRc(
-            domain_colors=domain_colors,
-            lehmer=[],  # Identity permutation
-            moved_count=0
-        )
+        # Infer σ from pixel mapping X∘φ → Y (WO-04E + WO-04G)
+        # Build mapping by iterating matched components
+        color_mapping = {}  # source_color → target_color
+        touched_colors = set()  # Colors actually seen in domain
+
+        # Re-iterate through matched components to build color mapping
+        piece_idx = 0
+        for outline_hash in sorted(set(X_by_hash.keys()) & set(Y_by_hash.keys())):
+            X_comps = X_by_hash[outline_hash]
+            Y_comps = Y_by_hash[outline_hash]
+
+            for (x_idx, x_inv), (y_idx, y_inv) in zip(X_comps, Y_comps):
+                if piece_idx >= len(pieces):
+                    break
+
+                piece = pieces[piece_idx]
+                if piece.comp_id != x_idx:
+                    continue
+
+                # Extract component bboxes
+                X_bbox = X[x_inv.anchor_r:x_inv.anchor_r+x_inv.bbox_h,
+                           x_inv.anchor_c:x_inv.anchor_c+x_inv.bbox_w]
+                Y_bbox = Y[y_inv.anchor_r:y_inv.anchor_r+y_inv.bbox_h,
+                           y_inv.anchor_c:y_inv.anchor_c+y_inv.bbox_w]
+
+                # Apply pose and translation to X bbox (WO-04D + WO-04E)
+                X_posed = _apply_d4_pose(X_bbox, piece.pose_id)
+
+                # Apply translation to align with Y_bbox
+                dr, dc = piece.dr, piece.dc
+                if dr != 0 or dc != 0:
+                    h, w = X_posed.shape
+                    X_shifted = np.zeros_like(X_posed)
+                    src_r0, src_r1 = max(0, -dr), min(h, h - dr)
+                    src_c0, src_c1 = max(0, -dc), min(w, w - dc)
+                    dst_r0, dst_r1 = max(0, dr), min(h, h + dr)
+                    dst_c0, dst_c1 = max(0, dc), min(w, w + dc)
+                    if src_r1 > src_r0 and src_c1 > src_c0:
+                        X_shifted[dst_r0:dst_r1, dst_c0:dst_c1] = X_posed[src_r0:src_r1, src_c0:src_c1]
+                    X_transformed = X_shifted
+                else:
+                    X_transformed = X_posed
+
+                # Build pixel mapping from X∘φ → Y (WO-04E)
+                for r in range(Y_bbox.shape[0]):
+                    for c in range(Y_bbox.shape[1]):
+                        x_color = int(X_transformed[r, c])
+                        y_color = int(Y_bbox[r, c])
+
+                        # Track touched colors
+                        touched_colors.add(x_color)
+
+                        if x_color in color_mapping:
+                            # Check consistency (WO-04E)
+                            if color_mapping[x_color] != y_color:
+                                # Inconsistent recoloring
+                                geometric_ok = False
+                                break
+                        else:
+                            color_mapping[x_color] = y_color
+                    if not geometric_ok:
+                        break
+
+                piece_idx += 1
+                if not geometric_ok:
+                    break
+            if not geometric_ok:
+                break
+
+        if not geometric_ok:
+            # Inconsistent σ - fall back to summary/identity
+            domain_colors = sorted(set(inv.color for inv in X_invs))
+            sigma = SigmaRc(
+                domain_colors=domain_colors,
+                lehmer=[],
+                moved_count=0
+            )
+        else:
+            # Build permutation on domain colors (WO-04G: fix index bug)
+            # σ is defined only on colors that appear in X∘φ (touched_colors)
+            domain_colors = sorted(touched_colors)
+
+            # Check if color_mapping is injective on domain
+            target_colors = [color_mapping[c] for c in domain_colors]
+            if len(target_colors) != len(set(target_colors)):
+                # Not injective - not a valid permutation
+                # Fall back to identity
+                sigma = SigmaRc(
+                    domain_colors=domain_colors,
+                    lehmer=[],
+                    moved_count=0
+                )
+            else:
+                # Check if target_colors form a permutation of domain_colors
+                # (i.e., codomain == domain, making it a true permutation)
+                if set(target_colors) != set(domain_colors):
+                    # Codomain != domain, so it's a partial function, not a permutation
+                    # This is still valid (e.g., {1→3} where 3 is a new color)
+                    # Extend domain to include codomain colors
+                    extended_domain = sorted(set(domain_colors) | set(target_colors))
+
+                    # Build extended mapping with identity for new colors
+                    extended_mapping = {c: c for c in extended_domain}
+                    extended_mapping.update(color_mapping)
+
+                    # Check injectivity on extended domain
+                    extended_targets = [extended_mapping[c] for c in extended_domain]
+                    if len(extended_targets) != len(set(extended_targets)):
+                        # Extended mapping not injective - fall back
+                        sigma = SigmaRc(
+                            domain_colors=domain_colors,
+                            lehmer=[],
+                            moved_count=0
+                        )
+                    else:
+                        # Build permutation on extended domain
+                        color_to_idx = {c: i for i, c in enumerate(extended_domain)}
+                        perm = [color_to_idx[extended_mapping[c]] for c in extended_domain]
+                        lehmer = _perm_to_lehmer(perm)
+                        moved_count = sum(1 for i in range(len(perm)) if perm[i] != i)
+
+                        sigma = SigmaRc(
+                            domain_colors=extended_domain,
+                            lehmer=lehmer,
+                            moved_count=moved_count
+                        )
+                else:
+                    # Perfect permutation: codomain == domain
+                    color_to_idx = {c: i for i, c in enumerate(domain_colors)}
+                    perm = [color_to_idx[color_mapping[c]] for c in domain_colors]
+                    lehmer = _perm_to_lehmer(perm)
+                    moved_count = sum(1 for i in range(len(perm)) if perm[i] != i)
+
+                    sigma = SigmaRc(
+                        domain_colors=domain_colors,
+                        lehmer=lehmer,
+                        moved_count=moved_count
+                    )
 
         phi_rc = PhiRc(
             pieces=pieces,
             bbox_equal=bbox_equal,
-            domain_pixels=domain_pixels
+            domain_pixels=domain_pixels,
+            geometric_trials=geometric_trials  # WO-04D: record all trials
         )
 
         witness_rc = TrainWitnessRc(
@@ -476,8 +757,7 @@ def solve_witness_for_pair(
     foreground_colors = [c for c in all_colors if c not in (0,)]
     background_colors = [c for c in all_colors if c in (0, 1)]
 
-    # C2: Decision rule frozen
-    # For now: generic "strict_majority_foreground_fallback_0"
+    # C2: Decision rule frozen (contract: explicit string, no dynamic choices)
     decision_rule = "strict_majority_foreground_fallback_0"
 
     # A1: Record per-color counts on Y (the decision window for this example)
@@ -507,7 +787,8 @@ def conjugate_to_test(
     phi_pieces: Optional[List[PhiPiece]],
     sigma: SigmaRc,
     Pi_train=None,
-    Pi_test=None
+    Pi_test=None,
+    domain_pixels: int = 0
 ) -> Tuple[Optional[List[PhiPiece]], ConjugatedRc]:
     """
     Conjugate witness to test Π frame.
@@ -524,6 +805,7 @@ def conjugate_to_test(
         sigma: palette permutation
         Pi_train: Π transform for training (PiTransform from WO-01)
         Pi_test: Π transform for test (PiTransform from WO-01)
+        domain_pixels: total pixels covered by φ (sum of component areas)
 
     Returns:
         (phi_star_pieces or None, ConjugatedRc)
@@ -545,7 +827,8 @@ def conjugate_to_test(
         phi_star_rc = PhiRc(
             pieces=phi_pieces,
             bbox_equal=[True] * len(phi_pieces),
-            domain_pixels=0
+            domain_pixels=domain_pixels,  # Passed from caller (sum of component areas)
+            geometric_trials=None  # Conjugation has no trials
         )
         # Identity hash (no transform)
         phi_star_sorted = sorted(phi_pieces, key=lambda p: p.comp_id)
@@ -642,7 +925,8 @@ def conjugate_to_test(
     phi_star_rc = PhiRc(
         pieces=phi_star_pieces,
         bbox_equal=[True] * len(phi_star_pieces),
-        domain_pixels=sum(1 for _ in phi_star_pieces)  # Placeholder
+        domain_pixels=domain_pixels,  # Passed from caller (sum of component areas)
+        geometric_trials=None  # Conjugation has no trials
     )
 
     conj_rc = ConjugatedRc(

@@ -987,29 +987,33 @@ def synthesize_shape(
                     f"Registered qualifiers: {REGISTERED_COUNT_QUALIFIERS}"
                 )
 
-    # Fail-closed: no family fits
+    # Fail-closed: no family fits (WO-02Z)
     if not candidates:
-        # Return None for S_fn and diagnostic receipt
+        # Return None for S_fn and diagnostic receipt with status="NONE"
         rc = ShapeRc(
-            branch_byte="",  # Empty signals contradiction
-            params_bytes_hex="",
-            R=-1,
-            C=-1,
-            verified_train_ids=[],
+            status="NONE",  # WO-02Z: explicit None instead of contradiction
+            branch_byte=None,
+            params_bytes_hex=None,
+            R=None,
+            C=None,
+            verified_train_ids=[],  # Empty when no fit
             extras={
-                "status": "SHAPE_CONTRADICTION",
-                "attempts": [
-                    {"family": "AFFINE", "reason": aff_reason or "unknown"},
-                    {"family": "PERIOD", "reason": per_reason or "unknown"},
-                    {"family": "COUNT", "reason": count_reason or "unknown"},
-                    {"family": "FRAME", "reason": frame_reason or "unknown"},
-                ]
-            }
+                "shape_fit": "NONE",
+                "shape_source": "engine",  # WO-02Z: marks deferral to engines
+            },
+            height_fit=None,
+            width_fit=None,
+            attempts=[  # WO-02Z: log rejected families
+                {"family": "AFFINE", "reason": aff_reason or "unknown"},
+                {"family": "PERIOD", "reason": per_reason or "unknown"},
+                {"family": "COUNT", "reason": count_reason or "unknown"},
+                {"family": "FRAME", "reason": frame_reason or "unknown"},
+            ]
         )
 
         # Optional fail-fast for special use cases (default: library stays total)
         if fail_fast:
-            raise ValueError(f"SHAPE_CONTRADICTION: {rc.extras}")
+            raise ValueError(f"SHAPE_CONTRADICTION: status=NONE, defer to engines. Attempts: {rc.attempts}")
 
         return None, rc
 
@@ -1027,19 +1031,24 @@ def synthesize_shape(
         R_test, C_test = apply_shape(S, test_H, test_W)
 
         if R_test <= 0 or C_test <= 0:
-            # Reject this Shape S (INVALID_DIMENSIONS)
+            # Reject this Shape S (INVALID_DIMENSIONS) - treat as NONE (WO-02Z)
             rc = ShapeRc(
-                branch_byte="",
-                params_bytes_hex="",
-                R=-1,
-                C=-1,
+                status="NONE",  # WO-02Z: defer to engines
+                branch_byte=None,
+                params_bytes_hex=None,
+                R=None,
+                C=None,
                 verified_train_ids=[],
                 extras={
-                    "status": "INVALID_DIMENSIONS",
+                    "shape_fit": "INVALID_DIMENSIONS",
+                    "shape_source": "engine",
                     "reason": f"Shape S returns ({R_test}, {C_test}) for test input {test_shape}",
                     "branch_attempted": branch,
                     "params_hex_attempted": params_bytes.hex(),
-                }
+                },
+                height_fit=None,
+                width_fit=None,
+                attempts=[{"family": branch, "reason": f"returns invalid dimensions ({R_test}, {C_test})"}]
             )
 
             if fail_fast:
@@ -1047,20 +1056,24 @@ def synthesize_shape(
 
             return None, rc
 
-    # Create receipt (R, C, verified_train_ids will be filled by caller)
+    # Create receipt (R, C, verified_train_ids will be filled by caller) (WO-02Z)
     rc = ShapeRc(
+        status="OK",  # WO-02Z: provably fits all trainings
         branch_byte=branch,
         params_bytes_hex=params_bytes.hex(),
-        R=-1,  # placeholder
+        R=-1,  # placeholder (filled by caller after applying to test)
         C=-1,  # placeholder
-        verified_train_ids=[],  # placeholder
+        verified_train_ids=[],  # placeholder (filled by caller)
         extras=extras,
+        height_fit=None,  # TODO WO-02Z: add per-axis proof tables in future iteration
+        width_fit=None,  # TODO WO-02Z: add per-axis proof tables in future iteration
+        attempts=None  # Success case: no failed attempts
     )
 
     return S, rc
 
 
-def serialize_shape(shape_rc: ShapeRc) -> tuple[str, str, dict]:
+def serialize_shape(shape_rc: ShapeRc) -> tuple[str, str, dict] | None:
     """
     Extract serialized params from ShapeRc for reuse.
 
@@ -1070,17 +1083,24 @@ def serialize_shape(shape_rc: ShapeRc) -> tuple[str, str, dict]:
     This is a trivial extraction helper that pulls the frozen encoding from
     ShapeRc. The encoding is already deterministic (created during WO-02 fit).
 
+    Contract (WO-02Z):
+    Returns None if shape_rc.status == "NONE" (no shape to serialize)
+
     Args:
         shape_rc: ShapeRc from WO-02 fit
 
     Returns:
         (branch_byte, params_bytes_hex, extras): Serialized params suitable
-        for deserialize_shape()
+        for deserialize_shape(), or None if status="NONE"
 
     Mathematical property:
         deserialize(serialize(shape_rc)) ≡ original S function
         (isomorphism: serialize and deserialize are inverse operations)
     """
+    # WO-02Z: Handle status="NONE" case
+    if shape_rc.status == "NONE" or shape_rc.branch_byte is None:
+        return None
+
     return (shape_rc.branch_byte, shape_rc.params_bytes_hex, shape_rc.extras)
 
 

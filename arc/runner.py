@@ -130,30 +130,41 @@ def solve_task(
 
     S_fn, shape_rc = shape.synthesize_shape(train_shape_pairs)
 
-    # Check if shape was contradictory (content-dependent case)
-    shape_contradictory = (S_fn is None)
+    # WO-02Z: Check shape status
+    shape_ok = (shape_rc.status == "OK")
+    # WO-04H/WO-11D: Define shape_contradictory for backward compatibility with engines
+    shape_contradictory = not shape_ok
 
     # Apply S to test (on Π-presented sizes) if available
     H_star, W_star = Xstar_t.shape
 
-    if not shape_contradictory:
+    if shape_ok and S_fn is not None:
         R_star, C_star = S_fn(H_star, W_star)
 
         # Verify shape is positive
         if R_star <= 0 or C_star <= 0:
             raise ValueError(f"Shape S produced non-positive dimensions: ({R_star}, {C_star})")
     else:
-        # Shape contradictory - will be determined by engine
+        # WO-02Z: Shape status="NONE" - defer to engines
+        # Engines will compute (R, C) from content
         R_star, C_star = None, None
 
-    # Store shape receipts
+    # Store shape receipts (WO-02Z)
     if shape_rc:
         sections["shape"] = asdict(shape_rc)
-        sections["shape"]["R_star"] = R_star
-        sections["shape"]["C_star"] = C_star
-        sections["shape"]["shape_source"] = "S" if not shape_contradictory else "CONTRADICTION"
+        # Update with computed shape if available
+        if shape_ok:
+            sections["shape"]["R"] = R_star
+            sections["shape"]["C"] = C_star
+            if "extras" not in sections["shape"]:
+                sections["shape"]["extras"] = {}
+            sections["shape"]["extras"]["shape_source"] = "pi_inputs"  # WO-02Z: from Π
+        else:
+            # status="NONE": will be filled by engines
+            sections["shape"]["extras"]["shape_source"] = "engine"  # WO-02Z: deferred
     else:
-        sections["shape"] = {"branch_byte": "CONTRADICTION", "R_star": None, "C_star": None, "shape_source": "CONTRADICTION"}
+        # Shouldn't happen, but handle gracefully
+        sections["shape"] = {"status": "NONE", "branch_byte": None, "R": None, "C": None, "extras": {"shape_source": "engine"}}
 
     hashes["shape"] = hash_bytes(str(sections["shape"]).encode())
 
@@ -168,22 +179,57 @@ def solve_task(
 
     truth_rc = truth_partition.receipt
 
-    # Store truth receipts
+    # WO-05T: Refine truth using training signatures
+    # Build training data for refinement (need shapes for pullback)
+    train_refine_infos = []
+    for i, (Xt, Yt) in enumerate(zip(Xt_list, Yt_list)):
+        H_i, W_i = Xt.shape
+        R_i, C_i = Yt.shape
+        train_refine_infos.append(((H_i, W_i), (R_i, C_i), Yt))
+
+    refined_labels, refine_rc = truth.refine_truth_with_training(
+        truth_partition.labels,
+        Xstar_t.shape,
+        train_refine_infos
+    )
+
+    # Update truth partition with refined labels
+    # Recompute partition hash and histogram for refined partition
+    refined_partition_hash = truth._partition_hash(refined_labels)
+    uniq, counts = np.unique(refined_labels, return_counts=True)
+    refined_block_hist = counts.tolist()
+
+    # Create updated receipt with refined data
+    from dataclasses import replace
+    refined_truth_rc = replace(
+        truth_rc,
+        partition_hash=refined_partition_hash,
+        block_hist=refined_block_hist
+    )
+
+    # Store truth receipts (including refinement)
     sections["truth"] = {
-        "tag_set_version": truth_rc.tag_set_version,
-        "partition_hash": truth_rc.partition_hash,
-        "block_hist": truth_rc.block_hist,
-        "row_clusters": truth_rc.row_clusters,
-        "col_clusters": truth_rc.col_clusters,
-        "refinement_steps": truth_rc.refinement_steps,
+        "tag_set_version": refined_truth_rc.tag_set_version,
+        "partition_hash": refined_truth_rc.partition_hash,
+        "block_hist": refined_truth_rc.block_hist,
+        "row_clusters": refined_truth_rc.row_clusters,
+        "col_clusters": refined_truth_rc.col_clusters,
+        "refinement_steps": refined_truth_rc.refinement_steps,
         "overlaps": {
-            "method": truth_rc.overlaps.method,
-            "candidates_count": len(truth_rc.overlaps.candidates),
-            "accepted_count": len(truth_rc.overlaps.accepted),
-            "identity_excluded": truth_rc.overlaps.identity_excluded,
-        }
+            "method": refined_truth_rc.overlaps.method,
+            "candidates_count": len(refined_truth_rc.overlaps.candidates),
+            "accepted_count": len(refined_truth_rc.overlaps.accepted),
+            "identity_excluded": refined_truth_rc.overlaps.identity_excluded,
+        },
+        "training_refinement": refine_rc  # WO-05T receipt
     }
     hashes["truth"] = hash_bytes(str(sections["truth"]).encode())
+
+    # Create new TruthPartition with refined labels (frozen dataclass)
+    truth_partition = truth.TruthPartition(
+        labels=refined_labels,
+        receipt=refined_truth_rc
+    )
 
     # ========================================================================
     # Step 3.5: Components (WO-03) for witness/engines
@@ -589,14 +635,20 @@ def solve_task(
             # Conjugate each witness to test frame
             conj_list = []
             for tw in train_witnesses:
+                # Extract domain_pixels from original witness receipt
+                domain_pixels = tw["receipt"].phi.domain_pixels if tw["receipt"].phi else 0
+
+                # Conjugate witness from training frame to test frame (WO-04C.1)
+                # Since present_all applies same Π to all grids, Pi_train = Pi_test
                 phi_conj, sigma_conj = witness.conjugate_to_test(
                     tw["phi_pieces"],
                     tw["sigma"],
-                    Pi_test,  # Test Π transform
-                    comps_Xstar  # Test components
+                    Pi_test,  # Pi_train (same Π used for all grids)
+                    Pi_test,  # Pi_test
+                    domain_pixels=domain_pixels
                 )
                 conj_list.append((phi_conj, sigma_conj))
-                phi_stars.append(phi_conj)  # Store for copy
+                phi_stars.append(sigma_conj.phi_star)  # WO-04H: Store PhiRc, not list
 
             # Intersect witnesses
             phi_law, sigma_law, intersection_rc = witness.intersect_witnesses(conj_list)
@@ -712,11 +764,13 @@ def solve_task(
     # ========================================================================
 
     if R_star is None or C_star is None:
-        # Shape was contradictory and no engine provided it
+        # WO-02Z: Shape status="NONE" and no engine provided it
+        # This error only fires when BOTH S and engines fail
         raise ValueError(
             "SHAPE_CONTRADICTION: Output shape undetermined. "
-            "Shape synthesis failed and no engine provided shape. "
-            "This is a content-dependent task that requires an engine."
+            f"Shape synthesis returned status={shape_rc.status} and no engine provided shape. "
+            "This is a content-dependent task that requires an engine. "
+            f"Attempted families: {shape_rc.attempts if shape_rc.attempts else 'none'}"
         )
 
     # ========================================================================

@@ -68,6 +68,23 @@ def env_fingerprint() -> EnvRc:
 
 
 @dataclass
+class AxisFit:
+    """
+    Per-axis shape fit with proof table.
+
+    Contract (WO-02Z):
+    - family: "mul"|"add"|"mix"|"down"|"count"|"const"
+    - params_hex: serialized params (ZigZag LEB128)
+    - ok_for_all_trainings: True iff exact for all trainings
+    - proof: per-training verification [{train_id, H, W, R', C', pred, ok}, ...]
+    """
+    family: str
+    params_hex: str
+    ok_for_all_trainings: bool
+    proof: list[dict[str, Any]]
+
+
+@dataclass
 class ShapeRc:
     """
     Shape synthesis receipt.
@@ -78,13 +95,22 @@ class ShapeRc:
     Contract (02_determinism_addendum.md §1.1):
     Branch codes: 'A' (AFFINE), 'P' (PERIOD_MULTIPLE), 'C' (COUNT_BASED), 'F' (FRAME)
     Ordering key: (branch_byte, params_bytes, R, C)
+
+    Contract (WO-02Z):
+    - status: "OK" (provably fits all trainings) | "NONE" (no exact fit, defer to engines)
+    - When status="OK": branch_byte, R, C, height_fit, width_fit populated
+    - When status="NONE": these fields are None, attempts log shows why families rejected
     """
-    branch_byte: str  # 'A', 'P', 'C', 'F'
-    params_bytes_hex: str  # deterministic serialization
-    R: int  # output height for test
-    C: int  # output width for test
-    verified_train_ids: list[str]  # must include ALL trainings
-    extras: dict[str, Any]  # axis_code for P, qual_id/qual_hash for C, etc.
+    status: str  # "OK" | "NONE"
+    branch_byte: str | None  # 'A', 'P', 'C', 'F' when status="OK"
+    params_bytes_hex: str | None  # deterministic serialization when status="OK"
+    R: int | None  # output height for test when status="OK"
+    C: int | None  # output width for test when status="OK"
+    verified_train_ids: list[str]  # ALL trainings when status="OK", empty when "NONE"
+    extras: dict[str, Any]  # axis_code for P, qual_id/qual_hash for C, shape_source, etc.
+    height_fit: AxisFit | None = None  # WO-02Z: per-axis proof table
+    width_fit: AxisFit | None = None  # WO-02Z: per-axis proof table
+    attempts: list[dict[str, Any]] | None = None  # WO-02Z: log of rejected families
 
 
 @dataclass

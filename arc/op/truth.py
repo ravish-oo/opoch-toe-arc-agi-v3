@@ -25,7 +25,7 @@ Receipts:
 """
 
 from dataclasses import dataclass
-from typing import Literal, List, Tuple, Optional
+from typing import Literal, List, Tuple, Optional, Dict
 import numpy as np
 from blake3 import blake3
 
@@ -719,6 +719,115 @@ def _partition_hash(labels: np.ndarray) -> str:
 # ============================================================================
 # MAIN ENTRY POINT
 # ============================================================================
+
+def refine_truth_with_training(
+    labels: np.ndarray,
+    test_shape: Tuple[int, int],
+    train_infos: List[Tuple[Tuple[int, int], Tuple[int, int], np.ndarray]],
+    # list of ((H_i, W_i) input, (R_i, C_i) output, Y_i array)
+) -> Tuple[np.ndarray, Dict]:
+    """
+    Refine truth partition using per-training signatures (WO-05T).
+
+    Contract (WO-05T):
+    - For each pixel p in test, compute signature = tuple(Y_i[pullback(p)] for each training i)
+    - Pixels with different signatures must be in different truth blocks
+    - Pullback: Π+S only; OOB → None (results in empty signature element)
+
+    Algorithm:
+    1. For each existing truth block
+    2. Compute per-pixel signatures using training outputs
+    3. Split block if pixels have different signatures
+    4. Return refined labels and split log
+
+    Args:
+        labels: Initial truth partition labels (H*, W*)
+        test_shape: (H*, W*) test dimensions
+        train_infos: [((H_i,W_i), (R_i,C_i), Y_i), ...] training data
+
+    Returns:
+        (refined_labels, split_log)
+    """
+    from .unanimity import _pullback_pixel
+
+    H_star, W_star = test_shape
+    refined_labels = labels.copy()
+    next_label = labels.max() + 1
+    splits_made = 0
+    split_log = []
+
+    # Find all unique block IDs
+    block_ids = np.unique(labels)
+
+    for block_id in block_ids:
+        # Find all pixels in this block
+        coords = np.argwhere(labels == block_id)
+
+        if len(coords) <= 1:
+            # Single pixel block, no need to split
+            continue
+
+        # Compute signature for each pixel in the block
+        pixel_signatures = {}
+
+        for idx, (r_star, c_star) in enumerate(coords):
+            # Build per-training signature
+            sig_parts = []
+
+            for (H_i, W_i), (R_i, C_i), Y_i in train_infos:
+                # Pull back to training output
+                p_i = _pullback_pixel(
+                    (r_star, c_star),
+                    H_star, W_star,
+                    R_i, C_i
+                )
+
+                if p_i is not None:
+                    r_i, c_i = p_i
+                    color = int(Y_i[r_i, c_i])
+                    sig_parts.append((color,))
+                else:
+                    sig_parts.append(())  # Empty if undefined
+
+            # Final signature is tuple of per-training tuples
+            signature = tuple(sig_parts)
+
+            if signature not in pixel_signatures:
+                pixel_signatures[signature] = []
+            pixel_signatures[signature].append((r_star, c_star))
+
+        # Check if block needs splitting
+        if len(pixel_signatures) > 1:
+            # Split block: keep first signature with original label,
+            # assign new labels to other signatures
+            signatures_sorted = sorted(pixel_signatures.keys())
+
+            for i, sig in enumerate(signatures_sorted[1:], start=1):
+                new_label = next_label
+                next_label += 1
+                splits_made += 1
+
+                # Assign new label to these pixels
+                for r, c in pixel_signatures[sig]:
+                    refined_labels[r, c] = new_label
+
+                split_log.append({
+                    "original_block": int(block_id),
+                    "new_block": int(new_label),
+                    "pixel_count": len(pixel_signatures[sig]),
+                    "signature": str(sig)  # Convert to string for JSON
+                })
+
+    receipt = {
+        "method": "training_signatures",
+        "blocks_before": len(block_ids),
+        "blocks_after": len(np.unique(refined_labels)),
+        "splits_made": splits_made,
+        "split_log": split_log
+    }
+
+    return refined_labels, receipt
+
 
 def compute_truth_partition(
     X: np.ndarray,
