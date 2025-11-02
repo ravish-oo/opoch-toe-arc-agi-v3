@@ -34,7 +34,7 @@ You’re right to pause before wiring WO-11. The implementer’s gap list is acc
 
 ---
 
-# WO-10A — Macro-Tiling Engine (bands + strict majority) (HIGH)
+# WO-10A — Macro-Tiling Engine (bands + strict majority) (HIGH) ✅ COMPLETED
 
 **Why:** With Column-Dict live, we still need **one more finite engine** to unlock many content-dependent tasks. Macro-tiling is the most common; it uses WO-05 `row_clusters/col_clusters` and frozen strict-majority rules (A1/A2/C2, B1 recorded).  
 

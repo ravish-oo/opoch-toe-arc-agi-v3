@@ -1078,6 +1078,204 @@ def run_wo10a_macro_tiling() -> list[dict]:
     return results
 
 
+def run_wo02s_serialize() -> list[dict]:
+    """
+    WO-02S: Test Shape serialization/deserialization round-trip.
+
+    Synthetic test cases for all 4 branches:
+    1. AFFINE (standard): R = aH + b, C = cW + d
+    2. AFFINE (rational): R = floor((aH+b)/d1), C = floor((cW+e)/d2)
+    3. PERIOD: R = kr·pr_lcm, C = kc·pc_lcm
+    4. COUNT (q_rows): R = a1·H + b1, C = a2·H + b2
+
+    For each branch:
+    - Create synthetic ShapeRc
+    - Serialize using serialize_shape()
+    - Deserialize using deserialize_shape()
+    - Verify S functions are equivalent (produce same outputs)
+
+    Returns:
+        List of receipts per test case
+    """
+    from arc.op.shape import serialize_shape, deserialize_shape
+    from arc.op.receipts import ShapeRc
+    import numpy as np
+
+    results = []
+
+    # Test case 1: AFFINE standard (R = 2H + 1, C = 3W + 0)
+    test_case = {
+        "test_case": "affine_standard",
+        "desc": "R = 2H + 1, C = 3W + 0",
+    }
+
+    # Create synthetic ShapeRc (as if from WO-02 fit)
+    # Params: <4><a><b><c><d> with ZigZag encoding
+    from arc.op.bytes import frame_params
+    params_bytes = frame_params(2, 1, 3, 0, signed=True)
+    params_hex = params_bytes.hex()
+
+    shape_rc_affine = ShapeRc(
+        branch_byte="A",
+        params_bytes_hex=params_hex,
+        R=21,  # 2*10 + 1 for test H=10
+        C=30,  # 3*10 + 0 for test W=10
+        verified_train_ids=["train0", "train1"],
+        extras={}
+    )
+
+    # Serialize
+    branch, params_h, extras = serialize_shape(shape_rc_affine)
+
+    # Verify serialization extracted correctly
+    assert branch == "A", f"Expected branch 'A', got {branch}"
+    assert params_h == params_hex, f"Params hex mismatch"
+    assert extras == {}, f"Expected empty extras, got {extras}"
+
+    # Deserialize
+    S = deserialize_shape(branch, params_h, extras)
+
+    # Test round-trip equivalence: S should produce same outputs
+    test_inputs = [(5, 7), (10, 10), (15, 20)]
+    for H, W in test_inputs:
+        R_expected = 2 * H + 1
+        C_expected = 3 * W + 0
+        R_actual, C_actual = S(H, W)
+        assert (R_actual, C_actual) == (R_expected, C_expected), \
+            f"Round-trip failed for (H={H}, W={W}): expected ({R_expected}, {C_expected}), got ({R_actual}, {C_actual})"
+
+    test_case["result"] = "PASS"
+    test_case["branch"] = branch
+    test_case["round_trip_verified"] = True
+    results.append(test_case)
+
+    # Test case 2: AFFINE rational (R = floor((3H+2)/2), C = floor((5W+1)/3))
+    test_case = {
+        "test_case": "affine_rational",
+        "desc": "R = floor((3H+2)/2), C = floor((5W+1)/3)",
+    }
+
+    # Params: <6><d1><a><b><d2><c><e>
+    params_bytes = frame_params(2, 3, 2, 3, 5, 1, signed=True)
+    params_hex = params_bytes.hex()
+
+    shape_rc_rational = ShapeRc(
+        branch_byte="A",
+        params_bytes_hex=params_hex,
+        R=16,  # floor((3*10+2)/2) = floor(32/2) = 16
+        C=17,  # floor((5*10+1)/3) = floor(51/3) = 17
+        verified_train_ids=["train0"],
+        extras={"rational_floor": True, "d1": 2, "d2": 3}
+    )
+
+    # Serialize
+    branch, params_h, extras = serialize_shape(shape_rc_rational)
+
+    # Deserialize
+    S = deserialize_shape(branch, params_h, extras)
+
+    # Test round-trip
+    test_inputs = [(10, 10), (7, 9), (12, 15)]
+    for H, W in test_inputs:
+        R_expected = (3 * H + 2) // 2
+        C_expected = (5 * W + 1) // 3
+        R_actual, C_actual = S(H, W)
+        assert (R_actual, C_actual) == (R_expected, C_expected), \
+            f"Round-trip failed for (H={H}, W={W}): expected ({R_expected}, {C_expected}), got ({R_actual}, {C_actual})"
+
+    test_case["result"] = "PASS"
+    test_case["branch"] = branch
+    test_case["round_trip_verified"] = True
+    results.append(test_case)
+
+    # Test case 3: PERIOD (kr=2, kc=3, pr_lcm=4, pc_lcm=5)
+    test_case = {
+        "test_case": "period_multiple",
+        "desc": "R = 2·4, C = 3·5 (kr=2, kc=3, pr_lcm=4, pc_lcm=5)",
+    }
+
+    # Params: <2><kr><kc>
+    params_bytes = frame_params(2, 3, signed=False)
+    params_hex = params_bytes.hex()
+
+    shape_rc_period = ShapeRc(
+        branch_byte="P",
+        params_bytes_hex=params_hex,
+        R=8,   # 2 * 4
+        C=15,  # 3 * 5
+        verified_train_ids=["train0", "train1"],
+        extras={"row_periods_lcm": 4, "col_periods_lcm": 5, "axis_code": 0}
+    )
+
+    # Serialize
+    branch, params_h, extras = serialize_shape(shape_rc_period)
+
+    # Deserialize
+    S = deserialize_shape(branch, params_h, extras)
+
+    # Test round-trip (PERIOD ignores H, W - uses fixed kr, kc, lcms)
+    test_inputs = [(0, 0), (10, 10), (100, 100)]
+    for H, W in test_inputs:
+        R_expected = 2 * 4  # kr * pr_lcm
+        C_expected = 3 * 5  # kc * pc_lcm
+        R_actual, C_actual = S(H, W)
+        assert (R_actual, C_actual) == (R_expected, C_expected), \
+            f"Round-trip failed for (H={H}, W={W}): expected ({R_expected}, {C_expected}), got ({R_actual}, {C_actual})"
+
+    test_case["result"] = "PASS"
+    test_case["branch"] = branch
+    test_case["round_trip_verified"] = True
+    results.append(test_case)
+
+    # Test case 4: COUNT q_rows (R = 1·H + 2, C = 3·H + 0)
+    test_case = {
+        "test_case": "count_q_rows",
+        "desc": "R = 1H + 2, C = 3H + 0 (qual_id=q_rows)",
+    }
+
+    # Params: <4><a1><b1><a2><b2>
+    params_bytes = frame_params(1, 2, 3, 0, signed=True)
+    params_hex = params_bytes.hex()
+
+    shape_rc_count = ShapeRc(
+        branch_byte="C",
+        params_bytes_hex=params_hex,
+        R=12,  # 1*10 + 2 for test H=10
+        C=30,  # 3*10 + 0 for test H=10
+        verified_train_ids=["train0"],
+        extras={"qual_id": "q_rows", "coeffs": (1, 2, 3, 0)}
+    )
+
+    # Serialize
+    branch, params_h, extras = serialize_shape(shape_rc_count)
+
+    # Deserialize
+    S = deserialize_shape(branch, params_h, extras)
+
+    # Test round-trip (q_rows uses H for both R and C)
+    test_inputs = [(5, 7), (10, 10), (15, 20)]
+    for H, W in test_inputs:
+        R_expected = 1 * H + 2
+        C_expected = 3 * H + 0
+        R_actual, C_actual = S(H, W)
+        assert (R_actual, C_actual) == (R_expected, C_expected), \
+            f"Round-trip failed for (H={H}, W={W}): expected ({R_expected}, {C_expected}), got ({R_actual}, {C_actual})"
+
+    test_case["result"] = "PASS"
+    test_case["branch"] = branch
+    test_case["round_trip_verified"] = True
+    results.append(test_case)
+
+    print(f"\n{'='*60}")
+    print(f"WO-02S Shape Serialization Summary")
+    print(f"{'='*60}")
+    print(f"Test cases:         {len(results)}")
+    print(f"Passed:             {sum(1 for r in results if r['result'] == 'PASS')}")
+    print(f"{'='*60}\n")
+
+    return results
+
+
 def run_wo05(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts") -> list[dict]:
     """
     WO-05: Test Truth compiler (Paige-Tarjan gfp).
@@ -2752,6 +2950,24 @@ def main():
             print(f"Fit succeeded:      {fit_ok_count}")
             print(f"Apply succeeded:    {apply_ok_count}")
             print(f"{'='*60}\n")
+
+    elif args.wo == "WO-02S":
+        # WO-02S: Shape serialization/deserialization round-trip test
+        print(f"Running {args.wo} serialization tests (run 1/2)...")
+        r1_list = run_wo02s_serialize()
+        print(f"Running {args.wo} serialization tests (run 2/2)...")
+        r2_list = run_wo02s_serialize()
+
+        # Determinism check
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Test case {i}: receipts differ")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
 
     elif args.wo == "WO-10A":
         # WO-10A: Macro-Tiling engine test with synthetic cases

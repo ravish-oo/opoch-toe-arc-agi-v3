@@ -1060,6 +1060,30 @@ def synthesize_shape(
     return S, rc
 
 
+def serialize_shape(shape_rc: ShapeRc) -> tuple[str, str, dict]:
+    """
+    Extract serialized params from ShapeRc for reuse.
+
+    Contract (WO-02S, WO-11 gap analysis):
+    Makes the WO-11 contract explicit: "reuse S from WO-02 serialized params".
+
+    This is a trivial extraction helper that pulls the frozen encoding from
+    ShapeRc. The encoding is already deterministic (created during WO-02 fit).
+
+    Args:
+        shape_rc: ShapeRc from WO-02 fit
+
+    Returns:
+        (branch_byte, params_bytes_hex, extras): Serialized params suitable
+        for deserialize_shape()
+
+    Mathematical property:
+        deserialize(serialize(shape_rc)) ≡ original S function
+        (isomorphism: serialize and deserialize are inverse operations)
+    """
+    return (shape_rc.branch_byte, shape_rc.params_bytes_hex, shape_rc.extras)
+
+
 def deserialize_shape(branch_byte: str, params_hex: str, extras: dict) -> SFn:
     """
     Deserialize Shape S from frozen params and branch type.
