@@ -120,6 +120,9 @@ def fit_column_dict(
     schema_id = "col_sig_v1"
     engine = "column_dict"
 
+    # Infer dtype from first training output (no assumptions)
+    dtype = train_Y_list[0].dtype
+
     # Collect signatures and output columns from all trainings
     train_receipts = []
     dict_builder: Dict[Tuple[int, int], List[bytes]] = {}  # sig → [col_bytes, ...]
@@ -201,7 +204,7 @@ def fit_column_dict(
 
         # Infer R from first column
         if R is None:
-            R = len(col_bytes) // 8  # assuming int64 dtype (8 bytes per element)
+            R = len(col_bytes) // dtype.itemsize
 
     # Verify reconstruction on all trainings
     fit_verified_on = []
@@ -225,12 +228,12 @@ def fit_column_dict(
                 return EngineFitRc(engine=engine, ok=False, receipt=receipt)
 
             col_bytes = final_dict[tuple(sig)]
-            col = np.frombuffer(col_bytes, dtype=np.int64)
+            col = np.frombuffer(col_bytes, dtype=dtype)
             reconstructed_cols.append(col)
 
         # Concatenate columns
         if not reconstructed_cols:
-            Y_reconstructed = np.zeros((Y.shape[0], 0), dtype=np.int64)
+            Y_reconstructed = np.zeros((Y.shape[0], 0), dtype=dtype)
         else:
             Y_reconstructed = np.column_stack(reconstructed_cols)
 
@@ -258,6 +261,7 @@ def fit_column_dict(
         "engine": engine,
         "ok": True,
         "schema_id": schema_id,
+        "dtype": str(dtype),
         "train": train_receipts,
         "dict": dict_serialized,
         "conflicts": [],
@@ -311,6 +315,7 @@ def apply_column_dict(
     schema_id = fit_rc.receipt["schema_id"]
     dict_hex = fit_rc.receipt["dict"]
     R = fit_rc.receipt["output_height"]
+    dtype = np.dtype(fit_rc.receipt["dtype"])
 
     # Deserialize dict
     final_dict = {}
@@ -336,7 +341,7 @@ def apply_column_dict(
         if sig_tuple in final_dict:
             # Lookup succeeds
             col_bytes = final_dict[sig_tuple]
-            col = np.frombuffer(col_bytes, dtype=np.int64)
+            col = np.frombuffer(col_bytes, dtype=dtype)
             reconstructed_cols.append(col)
 
             lookup.append({
@@ -372,7 +377,7 @@ def apply_column_dict(
 
     # Concatenate columns
     if not reconstructed_cols:
-        Yt = np.zeros((R, 0), dtype=np.int64)
+        Yt = np.zeros((R, 0), dtype=dtype)
     else:
         Yt = np.column_stack(reconstructed_cols)
 
