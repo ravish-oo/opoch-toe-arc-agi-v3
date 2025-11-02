@@ -1351,6 +1351,302 @@ def run_wo07(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts"
     return all_receipts
 
 
+def run_wo08(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts") -> list[dict]:
+    """
+    WO-08: Tie-break L (argmin over frozen cost tuple).
+
+    Contract (WO-08):
+    Given admissible set of laws, compute frozen lex-min over L-tuple:
+    (L1_disp, param_len, recolor_bits, object_breaks, tie_code, residue_key, placement_keys?)
+
+    Since we may not have real underdetermined cases from WO-04, this harness creates
+    synthetic test cases that exercise all tie-breaking rules.
+
+    Test cases:
+    1. L1_disp tie: two candidates with different anchor displacements
+    2. param_len tie: same L1 but different encoding lengths
+    3. recolor_bits tie: same params but different σ moves
+    4. object_breaks tie: same recolor but different component breaks
+    5. tie_code tie: REF < ROT < TRANS preference
+    6. residue_key tie: prefer smaller residues
+    7. placement_keys tie: center_L1, topmost, leftmost (C1 chain)
+
+    Returns:
+        List of receipts (2 per test case: run 1 and run 2)
+    """
+    from arc.op.tiebreak import Candidate, resolve
+    from arc.op.receipts import env_fingerprint, aggregate
+
+    # Create synthetic test cases
+    test_cases = []
+
+    # Test 1: L1_disp tie (candidate 0 wins: smaller displacement)
+    test_cases.append({
+        "name": "L1_disp_tie",
+        "cands": [
+            Candidate(
+                phi_bytes=b"\x01\x02\x03",
+                sigma_domain_colors=[0, 1, 2],
+                sigma_lehmer=[0, 0, 0],
+                anchor_displacements=[(1, 1)],  # L1 = 2
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+            Candidate(
+                phi_bytes=b"\x01\x02\x03",
+                sigma_domain_colors=[0, 1, 2],
+                sigma_lehmer=[0, 0, 0],
+                anchor_displacements=[(2, 2)],  # L1 = 4 (loses)
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+        ],
+        "tie_context": "none",
+        "expected_idx": 0,
+    })
+
+    # Test 2: param_len tie (candidate 0 wins: shorter encoding)
+    test_cases.append({
+        "name": "param_len_tie",
+        "cands": [
+            Candidate(
+                phi_bytes=b"\x01\x02",  # len=2
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=2,
+                component_count_after=2,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+            Candidate(
+                phi_bytes=b"\x01\x02\x03\x04",  # len=4 (loses)
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=2,
+                component_count_after=2,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+        ],
+        "tie_context": "none",
+        "expected_idx": 0,
+    })
+
+    # Test 3: recolor_bits tie (candidate 0 wins: fewer moves)
+    test_cases.append({
+        "name": "recolor_bits_tie",
+        "cands": [
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1, 2],
+                sigma_lehmer=[0, 0, 0],  # no moves
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1, 2],
+                sigma_lehmer=[1, 0, 0],  # 1 move (loses)
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+        ],
+        "tie_context": "none",
+        "expected_idx": 0,
+    })
+
+    # Test 4: object_breaks tie (candidate 0 wins: no breaks)
+    test_cases.append({
+        "name": "object_breaks_tie",
+        "cands": [
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=3,  # no breaks
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=5,  # +2 breaks (loses)
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+        ],
+        "tie_context": "none",
+        "expected_idx": 0,
+    })
+
+    # Test 5: tie_code tie (candidate 0 wins: REF < ROT < TRANS)
+    test_cases.append({
+        "name": "tie_code_preference",
+        "cands": [
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],  # REF=0 (wins)
+                meta={"H": 10, "W": 10},
+            ),
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["ROT"],  # ROT=1 (loses)
+                meta={"H": 10, "W": 10},
+            ),
+        ],
+        "tie_context": "none",
+        "expected_idx": 0,
+    })
+
+    # Test 6: residue_key tie (candidate 0 wins: smaller residues)
+    test_cases.append({
+        "name": "residue_key_preference",
+        "cands": [
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(2, 0, 2, 0)],  # period=2, residue=0 (wins)
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(2, 1, 2, 1)],  # period=2, residue=1 (loses)
+                pose_classes=["REF"],
+                meta={"H": 10, "W": 10},
+            ),
+        ],
+        "tie_context": "none",
+        "expected_idx": 0,
+    })
+
+    # Test 7: placement_keys tie (candidate 0 wins: nearest center)
+    test_cases.append({
+        "name": "placement_generic",
+        "cands": [
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                placement_refs=[(4, 4)],  # near center (4.5, 4.5) → L1=1 (wins)
+                meta={"H": 10, "W": 10},
+            ),
+            Candidate(
+                phi_bytes=b"\x01\x02",
+                sigma_domain_colors=[0, 1],
+                sigma_lehmer=[0, 0],
+                anchor_displacements=[(1, 1)],
+                component_count_before=3,
+                component_count_after=3,
+                residue_list=[(1, 0, 1, 0)],
+                pose_classes=["REF"],
+                placement_refs=[(0, 0)],  # far from center → L1=9 (loses)
+                meta={"H": 10, "W": 10},
+            ),
+        ],
+        "tie_context": "generic_placement",
+        "expected_idx": 0,
+    })
+
+    # Run test cases
+    env = env_fingerprint()
+    all_receipts = []
+
+    for tc in test_cases:
+        # Run resolve
+        chosen_idx, tie_rc = resolve(tc["cands"], tie_context=tc["tie_context"])
+
+        # Verify expected winner
+        if chosen_idx != tc["expected_idx"]:
+            raise ValueError(
+                f"WO-08 test '{tc['name']}' failed: "
+                f"expected idx={tc['expected_idx']}, got idx={chosen_idx}"
+            )
+
+        # Build receipt
+        stage_hashes = {"tiebreak": tie_rc.table_hash}
+        notes = {
+            "test_case": tc["name"],
+            "tie_context": tc["tie_context"],
+            "num_candidates": len(tc["cands"]),
+            "chosen_idx": chosen_idx,
+            "tiebreak": {
+                "costs": tie_rc.costs,
+                "chosen_idx": tie_rc.chosen_idx,
+                "table_hash": tie_rc.table_hash,
+                "tie_context": tie_rc.tie_context,
+            },
+        }
+
+        receipt = {
+            "env": {
+                "platform": env.platform,
+                "endian": env.endian,
+                "py_version": env.py_version,
+                "blake3_version": env.blake3_version,
+                "compiler_version": env.compiler_version,
+                "build_flags_hash": env.build_flags_hash,
+            },
+            "stage_hashes": stage_hashes,
+            "notes": notes,
+        }
+
+        all_receipts.append(receipt)
+
+    return all_receipts
+
+
 def main():
     """
     Run WO determinism harness.
@@ -1556,6 +1852,37 @@ def main():
             print(f"Unanimous blocks:   {total_unanimous}")
             print(f"Empty pullbacks:    {total_empty}")
             print(f"Disagree blocks:    {total_disagree}")
+            print(f"{'='*60}\n")
+
+    elif args.wo == "WO-08":
+        print(f"Running {args.wo} on synthetic test cases (run 1/2)...")
+        r1_list = run_wo08(args.data, args.subset, args.receipts)
+        print(f"Running {args.wo} on synthetic test cases (run 2/2)...")
+        r2_list = run_wo08(args.data, args.subset, args.receipts)
+
+        # Determinism check: compare lists
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Test case {i}: receipts differ")
+                    if a.get("stage_hashes") != b.get("stage_hashes"):
+                        print(f"    Run 1 hashes: {a.get('stage_hashes')}")
+                        print(f"    Run 2 hashes: {b.get('stage_hashes')}")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
+
+        # Print summary
+        if results:
+            n_tests = len(results) // 2
+
+            print(f"\n{'='*60}")
+            print(f"WO-08 Summary")
+            print(f"{'='*60}")
+            print(f"Test cases:         {n_tests}")
+            print(f"All tests passed:   ✓")
             print(f"{'='*60}\n")
 
     else:

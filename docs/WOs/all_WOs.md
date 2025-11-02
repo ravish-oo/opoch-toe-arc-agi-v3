@@ -106,7 +106,7 @@
   **Red-team tests:** construct empty-pullback case; verify no unanimity write.
   **Gotchas:** never treat “no data anywhere” as unanimous.
 
-## WO-08 — Tie-break L (if needed) (MAJOR)
+## WO-08 — Tie-break L (if needed) (MAJOR) ✅ COMPLETED
 
 **Goal:** fixed argmin on admissible law set.
 **Delivers:**
