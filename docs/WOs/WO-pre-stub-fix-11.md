@@ -96,7 +96,7 @@ def apply_pooled_blocks(test_Xt, truth_test, fit_rc: PooledBlocksFitRc,
 
 ---
 
-# WO-10D — **Markers-Grid Engine** (MAJOR)
+# WO-10D — **Markers-Grid Engine** (MAJOR)  ✅ COMPLETED
 
 **Intent**: Detect a **grid of 2×2 solid markers** (from Truth features), cluster into a rectangular lattice, and fill each cell by rule.
 
