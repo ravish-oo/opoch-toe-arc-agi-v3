@@ -6,7 +6,7 @@
 
 ---
 
-# WO-10B — **Border-Scalar Engine** (MAJOR) 
+# WO-10B — **Border-Scalar Engine** (MAJOR) ✅ COMPLETED
 
 **Intent**: Reconstruct small outputs that are **constant border/interior fills** derived from **largest 4-CC border color** and **minimal interior 4-CC color**, as per archetype (B-a).
 **Fit** is input-only + output check; **Apply** paints small frame/interior with verified colors.
@@ -51,7 +51,7 @@ def apply_border_scalar(test_Xt: np.ndarray, truth_rc, fit_rc: BorderScalarFitRc
 
 ---
 
-# WO-10C — **Pooled-Blocks Engine** (MAJOR)
+# WO-10C — **Pooled-Blocks Engine** (MAJOR) ✅ COMPLETED
 
 **Intent**: Two-stage block voting (e.g., 2×2 pool) from band grids: **block votes → pooled quadrants** (archetype B-d). Frozen **strict majority** and tie chains.
 

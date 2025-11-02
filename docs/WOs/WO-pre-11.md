@@ -65,7 +65,7 @@ You’re right to pause before wiring WO-11. The implementer’s gap list is acc
 
 ---
 
-# WO-02S — Shape serialization helper (LOW)
+# WO-02S — Shape serialization helper (LOW) ✅ COMPLETED
 
 **Why:** WO-11 reuses S from WO-02 receipts; a single helper makes the contract explicit. Gap is low severity (fields exist), but helpful. 
 
