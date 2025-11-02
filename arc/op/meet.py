@@ -261,19 +261,24 @@ def select_from_domains(
     D: np.ndarray,                           # Final domains (H,W,K) uint64 after lfp
     C: list[int],                            # Color universe (sorted)
     copy_values: Optional[np.ndarray] = None,  # From shape S (H,W), or None
+    S_copy: Optional[np.ndarray] = None,     # Copy scope mask (H,W) uint8, or None
     unanimity_colors: Optional[np.ndarray] = None,  # Unanimous colors (H,W), or None
+    S_unanimity: Optional[np.ndarray] = None,  # Unanimity scope mask (H,W) uint8, or None
     *,
     bottom_color: int = 0                    # H2: must be 0
 ) -> Tuple[np.ndarray, MeetRc]:
     """
-    Select from final domains D* using frozen precedence.
+    Select from final domains D* using scope-gated frozen precedence.
 
-    Contract (WO-09'):
-    For each pixel p, selection inside D*[p]:
-    1. If copy_value[p] ∈ D*[p]: select copy_value[p] (copy path)
+    Contract (WO-09' + Scope S):
+    For each pixel p, selection inside D*[p] with scope gating:
+    1. If S_copy[p]=1 AND copy_value[p] ∈ D*[p]: select copy_value[p] (copy path)
     2. Else if D*[p] ≠ ∅: select min(D*[p]) (law path)
-    3. Else if unanimity_color[p] ∈ D*[p]: select unanimity_color[p] (unanimity path)
+    3. Else if S_unanimity[p]=1 AND unanimity_color[p] ∈ D*[p]: select unanimity_color[p] (unanimity path)
     4. Else: select 0 (bottom path)
+
+    Scope gating: a layer only "wins" precedence if its scope S[p]=1 (non-silent).
+    Law path has no scope gate (always tries min(D*[p]) as fallback).
 
     Containment guarantee: selected ∈ D*[p] always (harness will verify)
     Idempotence: repaint produces same hash
@@ -282,7 +287,9 @@ def select_from_domains(
         D: Final domains after propagate_fixed_point (H,W,K) uint64
         C: Color universe (sorted unique from Π inputs)
         copy_values: Copy colors from shape S (H,W), or None
+        S_copy: Copy scope mask (H,W) uint8; S[p]=1 if copy constrains p
         unanimity_colors: Unanimous block colors (H,W), or None
+        S_unanimity: Unanimity scope mask (H,W) uint8; S[p]=1 if unanimity constrains p
         bottom_color: Must be 0 (H2)
 
     Returns:
@@ -312,22 +319,24 @@ def select_from_domains(
     count_unanimity = 0
     count_bottom = 0
 
-    # For each pixel, select according to frozen precedence
+    # For each pixel, select according to scope-gated frozen precedence
     for r in range(H):
         for c in range(W):
             selected_color = None
 
-            # Path 1: Copy (if copy_value ∈ D*[p])
-            if copy_values is not None:
-                copy_color = int(copy_values[r, c])
-                if copy_color in color_to_idx:
-                    copy_idx = color_to_idx[copy_color]
-                    if _test_bit(D[r, c], copy_idx):
-                        # Copy color is admitted in D*[p]
-                        selected_color = copy_color
-                        count_copy += 1
+            # Path 1: Copy (if S_copy[p]=1 AND copy_value ∈ D*[p])
+            if S_copy is not None and S_copy[r, c] == 1:
+                if copy_values is not None:
+                    copy_color = int(copy_values[r, c])
+                    if copy_color in color_to_idx:
+                        copy_idx = color_to_idx[copy_color]
+                        if _test_bit(D[r, c], copy_idx):
+                            # Copy color is admitted in D*[p] and scope is active
+                            selected_color = copy_color
+                            count_copy += 1
 
             # Path 2: Law (pick min(D*[p]) if non-empty)
+            # No scope gate: law is fallback for any constrained domain
             if selected_color is None:
                 # Find all admitted colors at this pixel
                 admitted = []
@@ -340,15 +349,17 @@ def select_from_domains(
                     selected_color = min(admitted)
                     count_law += 1
 
-            # Path 3: Unanimity (if unanimity_color ∈ D*[p])
-            if selected_color is None and unanimity_colors is not None:
-                unanimity_color = int(unanimity_colors[r, c])
-                if unanimity_color in color_to_idx:
-                    unanimity_idx = color_to_idx[unanimity_color]
-                    if _test_bit(D[r, c], unanimity_idx):
-                        # Unanimity color is admitted in D*[p]
-                        selected_color = unanimity_color
-                        count_unanimity += 1
+            # Path 3: Unanimity (if S_unanimity[p]=1 AND unanimity_color ∈ D*[p])
+            if selected_color is None:
+                if S_unanimity is not None and S_unanimity[r, c] == 1:
+                    if unanimity_colors is not None:
+                        unanimity_color = int(unanimity_colors[r, c])
+                        if unanimity_color in color_to_idx:
+                            unanimity_idx = color_to_idx[unanimity_color]
+                            if _test_bit(D[r, c], unanimity_idx):
+                                # Unanimity color is admitted in D*[p] and scope is active
+                                selected_color = unanimity_color
+                                count_unanimity += 1
 
             # Path 4: Bottom (select 0)
             if selected_color is None:
@@ -377,13 +388,14 @@ def select_from_domains(
         for c in range(W):
             selected_color = None
 
-            # Same selection logic
-            if copy_values is not None:
-                copy_color = int(copy_values[r, c])
-                if copy_color in color_to_idx:
-                    copy_idx = color_to_idx[copy_color]
-                    if _test_bit(D[r, c], copy_idx):
-                        selected_color = copy_color
+            # Same scope-gated selection logic
+            if S_copy is not None and S_copy[r, c] == 1:
+                if copy_values is not None:
+                    copy_color = int(copy_values[r, c])
+                    if copy_color in color_to_idx:
+                        copy_idx = color_to_idx[copy_color]
+                        if _test_bit(D[r, c], copy_idx):
+                            selected_color = copy_color
 
             if selected_color is None:
                 admitted = []
@@ -393,12 +405,14 @@ def select_from_domains(
                 if admitted:
                     selected_color = min(admitted)
 
-            if selected_color is None and unanimity_colors is not None:
-                unanimity_color = int(unanimity_colors[r, c])
-                if unanimity_color in color_to_idx:
-                    unanimity_idx = color_to_idx[unanimity_color]
-                    if _test_bit(D[r, c], unanimity_idx):
-                        selected_color = unanimity_color
+            if selected_color is None:
+                if S_unanimity is not None and S_unanimity[r, c] == 1:
+                    if unanimity_colors is not None:
+                        unanimity_color = int(unanimity_colors[r, c])
+                        if unanimity_color in color_to_idx:
+                            unanimity_idx = color_to_idx[unanimity_color]
+                            if _test_bit(D[r, c], unanimity_idx):
+                                selected_color = unanimity_color
 
             if selected_color is None:
                 selected_color = bottom_color

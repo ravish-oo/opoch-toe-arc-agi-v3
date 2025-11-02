@@ -29,6 +29,7 @@ import numpy as np
 
 from arc.op.components import cc4_by_color
 from arc.op.hash import hash_bytes
+from arc.op.admit import empty_domains, _set_bit, _normalize_scope
 
 
 @dataclass
@@ -302,32 +303,39 @@ def apply_markers_grid(
     test_Xt: np.ndarray,
     truth_test: Any,
     fit_rc: MarkersFitRc,
+    C: List[int],
     expected_shape: Optional[Tuple[int, int]] = None
-) -> Tuple[np.ndarray, Dict]:
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
     """
-    Apply markers-grid engine to test input.
+    Apply markers-grid engine to test input (emit native admits).
 
-    Contract (WO-10D):
-    Apply same grid detection and rule on test.
+    Contract (WO-10D + WO-11A):
+    Apply same grid detection and rule on test, emit singleton admits.
 
     Args:
         test_Xt: Test input in Π frame
         truth_test: Truth partition for test (not used currently)
         fit_rc: Fit receipt from fit_markers_grid
+        C: Color universe (sorted unique colors)
         expected_shape: Optional (R, C) from WO-02
 
     Returns:
-        (Y_t, apply_rc): Output in Π frame and application receipt
+        (A, S, apply_rc): Admit bitmap, scope mask, and application receipt
     """
     # Detect markers on test
     markers_test = _detect_2x2_markers(test_Xt)
 
     if not markers_test:
-        # No markers found - fail
-        return np.zeros((0, 0), dtype=np.uint8), {
+        # No markers found - fail with empty admits
+        A = empty_domains(0, 0, C)
+        S = np.zeros((0, 0), dtype=np.uint8)
+        return A, S, {
             "engine": "markers_grid",
             "error": "NO_MARKERS_FOUND",
-            "output_shape": [0, 0]
+            "output_shape": [0, 0],
+            "scope_bits": 0,
+            "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+            "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
         }
 
     # Extract centroids
@@ -344,46 +352,70 @@ def apply_markers_grid(
     grid_shape_test = (len(all_y), len(all_x))
 
     if grid_shape_test != fit_rc.grid_shape:
-        # Grid shape mismatch
-        return np.zeros((0, 0), dtype=np.uint8), {
+        # Grid shape mismatch - fail with empty admits
+        A = empty_domains(0, 0, C)
+        S = np.zeros((0, 0), dtype=np.uint8)
+        return A, S, {
             "engine": "markers_grid",
             "error": "GRID_SHAPE_MISMATCH",
             "expected_grid_shape": list(fit_rc.grid_shape),
             "actual_grid_shape": list(grid_shape_test),
-            "output_shape": [0, 0]
+            "output_shape": [0, 0],
+            "scope_bits": 0,
+            "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+            "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
         }
 
     # Check expected shape if provided
-    R, C = fit_rc.grid_shape
+    R, C_out = fit_rc.grid_shape
     if expected_shape is not None:
         R_exp, C_exp = expected_shape
-        if (R, C) != (R_exp, C_exp):
-            # Shape mismatch
-            return np.zeros((R, C), dtype=np.uint8), {
+        if (R, C_out) != (R_exp, C_exp):
+            # Shape mismatch - fail with empty admits
+            A = empty_domains(R, C_out, C)
+            S = np.zeros((R, C_out), dtype=np.uint8)
+            return A, S, {
                 "engine": "markers_grid",
-                "output_shape": [R, C],
+                "output_shape": [R, C_out],
                 "expected_shape": [R_exp, C_exp],
-                "shape_mismatch": True
+                "shape_mismatch": True,
+                "scope_bits": 0,
+                "bitmap_hash": hash_bytes(A.tobytes()),
+                "scope_hash": hash_bytes(S.tobytes())
             }
 
-    # Apply cell fill rule
-    Y_t = np.zeros((R, C), dtype=np.uint8)
+    # Build color index lookup
+    color_to_idx = {c: i for i, c in enumerate(C)}
 
+    # Initialize admits and scope
+    A = empty_domains(R, C_out, C)
+    S = np.zeros((R, C_out), dtype=np.uint8)
+
+    # Emit singleton admits based on cell fill rule
     for gr_idx, gr in enumerate(all_y):
         for gc_idx, gc in enumerate(all_x):
             # Get marker color at this centroid
             marker_color = centroid_map_test.get((gr, gc), 0)
 
-            # Apply rule: cell_color = marker_color
-            Y_t[gr_idx, gc_idx] = marker_color
+            # Emit singleton admit for this cell
+            if marker_color in color_to_idx:
+                color_idx = color_to_idx[marker_color]
+                A[gr_idx, gc_idx, :] = 0
+                _set_bit(A[gr_idx, gc_idx], color_idx)
+                S[gr_idx, gc_idx] = 1
+
+    # Normalize
+    _normalize_scope(A, S, C)
 
     # Build receipt
     apply_rc = {
         "engine": "markers_grid",
-        "output_shape": [R, C],
+        "output_shape": [R, C_out],
         "num_markers": len(markers_test),
         "grid_shape": list(fit_rc.grid_shape),
-        "output_hash": hash_bytes(Y_t.tobytes())
+        "scope_bits": int(S.sum()),
+        "bitmap_hash": hash_bytes(A.tobytes()),
+        "scope_hash": hash_bytes(S.tobytes())
     }
 
-    return Y_t, apply_rc
+    return A, S, apply_rc

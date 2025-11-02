@@ -28,6 +28,7 @@ import numpy as np
 
 from arc.op.components import cc4_by_color
 from arc.op.hash import hash_bytes
+from arc.op.admit import empty_domains, _set_bit, _normalize_scope
 
 
 @dataclass
@@ -273,51 +274,86 @@ def fit_border_scalar(
 def apply_border_scalar(
     test_Xt: np.ndarray,
     fit_rc: BorderScalarFitRc,
+    C: List[int],
     expected_shape: Optional[Tuple[int, int]] = None
-) -> Tuple[np.ndarray, Dict]:
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
     """
-    Apply border-scalar engine to test input.
+    Apply border-scalar engine to test input (emit native admits).
 
-    Contract (WO-10B):
-    Paint border with border_color, interior with interior_color.
+    Contract (WO-10B + WO-11A):
+    Emit singleton admits for border (border_color) and interior (interior_color).
 
     Args:
         test_Xt: Test input in Π frame
         fit_rc: Fit receipt from fit_border_scalar
+        C: Color universe (sorted unique colors)
         expected_shape: Optional (R, C) from WO-02
 
     Returns:
-        (Y_t, apply_rc): Output in Π frame and application receipt
+        (A, S, apply_rc): Admit bitmap, scope mask, and application receipt
     """
     # Determine output shape
     if expected_shape is not None:
-        R, C = expected_shape
+        R, C_out = expected_shape
     else:
         # Use test input shape (identity size)
-        R, C = test_Xt.shape
+        R, C_out = test_Xt.shape
 
-    # Create output canvas
-    Y_t = np.zeros((R, C), dtype=np.uint8)
+    # Build color index lookup
+    color_to_idx = {c: i for i, c in enumerate(C)}
+
+    # Initialize admits (all colors allowed) and scope (all silent)
+    A = empty_domains(R, C_out, C)
+    S = np.zeros((R, C_out), dtype=np.uint8)
+
+    # Create temporary grid for mask extraction
+    temp_grid = np.zeros((R, C_out), dtype=np.uint8)
 
     # Extract regions
-    border_mask = _extract_border_region(Y_t)
-    interior_mask = _extract_interior_region(Y_t)
+    border_mask = _extract_border_region(temp_grid)
+    interior_mask = _extract_interior_region(temp_grid)
 
-    # Paint border
-    Y_t[border_mask] = fit_rc.border_color
+    # Emit singleton admits for border pixels
+    border_color = fit_rc.border_color
+    if border_color in color_to_idx:
+        border_idx = color_to_idx[border_color]
+        for r in range(R):
+            for c in range(C_out):
+                if border_mask[r, c]:
+                    # Clear all bits, then set only border_color
+                    A[r, c, :] = 0
+                    _set_bit(A[r, c], border_idx)
+                    S[r, c] = 1  # Mark as scoped
 
-    # Paint interior
-    Y_t[interior_mask] = fit_rc.interior_color
+    # Emit singleton admits for interior pixels
+    interior_color = fit_rc.interior_color
+    if interior_color in color_to_idx:
+        interior_idx = color_to_idx[interior_color]
+        for r in range(R):
+            for c in range(C_out):
+                if interior_mask[r, c]:
+                    # Clear all bits, then set only interior_color
+                    A[r, c, :] = 0
+                    _set_bit(A[r, c], interior_idx)
+                    S[r, c] = 1  # Mark as scoped
+
+    # Normalize (if A[p]=C, set S[p]=0)
+    _normalize_scope(A, S, C)
+
+    # Compute stats for receipt
+    scope_bits = int(S.sum())
 
     # Build receipt
     apply_rc = {
         "engine": "border_scalar",
-        "border_color": fit_rc.border_color,
-        "interior_color": fit_rc.interior_color,
-        "output_shape": [R, C],
+        "border_color": border_color,
+        "interior_color": interior_color,
+        "output_shape": [R, C_out],
         "border_pixels": int(np.sum(border_mask)),
         "interior_pixels": int(np.sum(interior_mask)),
-        "output_hash": hash_bytes(Y_t.tobytes())
+        "scope_bits": scope_bits,
+        "bitmap_hash": hash_bytes(A.tobytes()),
+        "scope_hash": hash_bytes(S.tobytes())
     }
 
-    return Y_t, apply_rc
+    return A, S, apply_rc

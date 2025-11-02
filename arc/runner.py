@@ -273,10 +273,18 @@ def solve_task(
     hashes["components"] = hash_bytes(str(sections["components"]).encode())
 
     # ========================================================================
+    # Step 3.6: Color universe (needed for engines and admit layer)
+    # ========================================================================
+
+    # Color universe: sorted unique from Π(inputs only), includes bottom_color=0
+    C = admit.color_universe(Xstar_t, Xt_list, bottom_color=0)
+
+    # ========================================================================
     # Step 4: Law selection (Engines → Witness → Tie)
     # ========================================================================
 
-    law_layer_values = None
+    law_layer_values = None  # Legacy: painted grid (for old engines)
+    law_layer_admits = None  # New: native (A, S, receipt) tuple from engines
     law_layer_mask = None
     law_status = "none"
     engine_used = None
@@ -302,15 +310,17 @@ def solve_task(
             ok, fit_rc = border_scalar.fit_border_scalar(train_pairs_for_fit)
 
             if ok:
-                # Apply to test
-                Yt_border, apply_rc = border_scalar.apply_border_scalar(
+                # Apply to test (now returns native admits)
+                A_engine, S_engine, apply_rc = border_scalar.apply_border_scalar(
                     Xstar_t,
                     fit_rc,
+                    C,
                     expected_shape=(R_star, C_star) if not shape_contradictory else None
                 )
 
-                # Engine succeeded
-                law_layer_values = Yt_border
+                # Engine succeeded - store native admits
+                law_layer_admits = (A_engine, S_engine, apply_rc)
+                law_layer_values = None  # No longer paint grid
                 law_layer_mask = None  # Full frame
                 law_status = "engine"
                 engine_used = engine_name
@@ -372,17 +382,19 @@ def solve_task(
                 ok, fit_rc = pooled_blocks.fit_pooled_blocks(train_pairs_for_fit)
 
                 if ok:
-                    # Apply to test
-                    Yt_pooled, apply_rc = pooled_blocks.apply_pooled_blocks(
+                    # Apply to test (now returns native admits)
+                    A_engine, S_engine, apply_rc = pooled_blocks.apply_pooled_blocks(
                         Xstar_t,
                         truth_partition.receipt,
                         fit_rc,
+                        C,
                         expected_shape=(R_star, C_star) if not shape_contradictory else None
                     )
 
                     if not apply_rc.get("shape_mismatch", False):
-                        # Engine succeeded
-                        law_layer_values = Yt_pooled
+                        # Engine succeeded - store native admits
+                        law_layer_admits = (A_engine, S_engine, apply_rc)
+                        law_layer_values = None  # No longer paint grid
                         law_layer_mask = None  # Full frame
                         law_status = "engine"
                         engine_used = engine_name
@@ -465,17 +477,19 @@ def solve_task(
                 ok, fit_rc = markers_grid.fit_markers_grid(train_pairs_for_fit)
 
                 if ok:
-                    # Apply to test
-                    Yt_markers, apply_rc = markers_grid.apply_markers_grid(
+                    # Apply to test (now returns native admits)
+                    A_engine, S_engine, apply_rc = markers_grid.apply_markers_grid(
                         Xstar_t,
                         truth_partition.receipt,
                         fit_rc,
+                        C,
                         expected_shape=(R_star, C_star) if not shape_contradictory else None
                     )
 
                     if not apply_rc.get("error") and not apply_rc.get("shape_mismatch", False):
-                        # Engine succeeded
-                        law_layer_values = Yt_markers
+                        # Engine succeeded - store native admits
+                        law_layer_admits = (A_engine, S_engine, apply_rc)
+                        law_layer_values = None  # No longer paint grid
                         law_layer_mask = None  # Full frame
                         law_status = "engine"
                         engine_used = engine_name
@@ -557,17 +571,19 @@ def solve_task(
                 ok, fit_rc = slice_stack.fit_slice_stack(train_pairs_for_fit)
 
                 if ok:
-                    # Apply to test
-                    Yt_slices, apply_rc = slice_stack.apply_slice_stack(
+                    # Apply to test (now returns native admits)
+                    A_engine, S_engine, apply_rc = slice_stack.apply_slice_stack(
                         Xstar_t,
                         truth_partition.receipt,
                         fit_rc,
+                        C,
                         expected_shape=(R_star, C_star) if not shape_contradictory else None
                     )
 
                     if not apply_rc.get("error") and not apply_rc.get("shape_mismatch", False):
-                        # Engine succeeded
-                        law_layer_values = Yt_slices
+                        # Engine succeeded - store native admits
+                        law_layer_admits = (A_engine, S_engine, apply_rc)
+                        law_layer_values = None  # No longer paint grid
                         law_layer_mask = None  # Full frame
                         law_status = "engine"
                         engine_used = engine_name
@@ -641,17 +657,19 @@ def solve_task(
             ok, fit_rc = kronecker.fit_kronecker(train_pairs_for_fit)
 
             if ok:
-                # Apply to test
-                Yt_kronecker, apply_rc = kronecker.apply_kronecker(
+                # Apply to test (now returns native admits)
+                A_engine, S_engine, apply_rc = kronecker.apply_kronecker(
                     Xstar_t,
                     None,
                     fit_rc,
+                    C,
                     expected_shape=(R_star, C_star) if not shape_contradictory else None
                 )
 
                 if not apply_rc.get("error"):
-                    # Engine succeeded
-                    law_layer_values = Yt_kronecker
+                    # Engine succeeded - store native admits
+                    law_layer_admits = (A_engine, S_engine, apply_rc)
+                    law_layer_values = None  # No longer paint grid
                     law_layer_mask = None  # Full frame
                     law_status = "engine"
                     engine_used = engine_name
@@ -717,17 +735,19 @@ def solve_task(
             ok, fit_rc = kronecker_mask.fit_kronecker_mask(train_pairs_for_fit)
 
             if ok:
-                # Apply to test
-                Yt_kron_mask, apply_rc = kronecker_mask.apply_kronecker_mask(
+                # Apply to test (now returns native admits)
+                A_engine, S_engine, apply_rc = kronecker_mask.apply_kronecker_mask(
                     Xstar_t,
                     None,
                     fit_rc,
+                    C,
                     expected_shape=(R_star, C_star) if not shape_contradictory else None
                 )
 
                 if not apply_rc.get("error"):
-                    # Engine succeeded
-                    law_layer_values = Yt_kron_mask
+                    # Engine succeeded - store native admits
+                    law_layer_admits = (A_engine, S_engine, apply_rc)
+                    law_layer_values = None  # No longer paint grid
                     law_layer_mask = None  # Full frame
                     law_status = "engine"
                     engine_used = engine_name
@@ -788,12 +808,13 @@ def solve_task(
             fit_rc = families.fit_column_dict(Xt_list, Yt_list)
 
             if fit_rc.ok:
-                # Apply to test
-                apply_rc = families.apply_column_dict(Xstar_t, fit_rc)
+                # Apply to test (now returns native admits)
+                A_engine, S_engine, apply_rc = families.apply_column_dict(Xstar_t, fit_rc, C)
 
-                if apply_rc.ok:
-                    # Engine succeeded
-                    law_layer_values = apply_rc.Yt
+                if not apply_rc.get("error"):
+                    # Engine succeeded - store native admits
+                    law_layer_admits = (A_engine, S_engine, apply_rc)
+                    law_layer_values = None  # No longer paint grid
                     law_layer_mask = None  # Full frame
                     law_status = "engine"
                     engine_used = engine_name
@@ -866,11 +887,12 @@ def solve_task(
 
             if fit_rc.ok:
                 # Apply to test (needs test truth receipt)
-                apply_rc = families.apply_macro_tiling(Xstar_t, truth_partition.receipt, fit_rc)
+                A_engine, S_engine, apply_rc = families.apply_macro_tiling(Xstar_t, truth_partition.receipt, fit_rc, C)
 
-                if apply_rc.ok:
-                    # Engine succeeded
-                    law_layer_values = apply_rc.Yt
+                if not apply_rc.get("error"):
+                    # Engine succeeded - store native admits
+                    law_layer_admits = (A_engine, S_engine, apply_rc)
+                    law_layer_values = None  # No longer paint grid
                     law_layer_mask = None  # Full frame
                     law_status = "engine"
                     engine_used = engine_name
@@ -885,7 +907,7 @@ def solve_task(
 
                     # Update shape if it was contradictory
                     if shape_contradictory:
-                        R_star, C_star = apply_rc.final_shape
+                        R_star, C_star = tuple(apply_rc["final_shape"])
                         sections["shape"]["R_star"] = R_star
                         sections["shape"]["C_star"] = C_star
                         sections["shape"]["shape_source"] = "engine"
@@ -893,7 +915,7 @@ def solve_task(
                     sections["engines"] = {
                         "used": engine_name,
                         "fit": fit_rc.receipt,
-                        "apply": apply_rc.receipt,
+                        "apply": apply_rc,
                     }
                     hashes["engines"] = hash_bytes(str(sections["engines"]).encode())
                     break
@@ -951,6 +973,7 @@ def solve_task(
         if witness_ok and train_witnesses:
             # Conjugate each witness to test frame
             conj_list = []
+            conj_receipts = []  # Store ConjugatedRc for pullback samples
             for tw in train_witnesses:
                 # Extract domain_pixels from original witness receipt
                 domain_pixels = tw["receipt"].phi.domain_pixels if tw["receipt"].phi else 0
@@ -965,6 +988,7 @@ def solve_task(
                     domain_pixels=domain_pixels
                 )
                 conj_list.append((phi_conj, sigma_conj))
+                conj_receipts.append(sigma_conj)  # Store for pullback samples extraction
                 phi_stars.append(sigma_conj.phi_star)  # WO-04H: Store PhiRc, not list
 
             # Intersect witnesses
@@ -993,9 +1017,11 @@ def solve_task(
                         "foreground_colors": tw["receipt"].foreground_colors if tw["receipt"].kind == "summary" else None,
                         "background_colors": tw["receipt"].background_colors if tw["receipt"].kind == "summary" else None,
                         "decision_rule": tw["receipt"].decision_rule if tw["receipt"].kind == "summary" else None,
-                        "per_color_counts": tw["receipt"].per_color_counts if tw["receipt"].kind == "summary" else None
+                        "per_color_counts": tw["receipt"].per_color_counts if tw["receipt"].kind == "summary" else None,
+                        # WO-04: Pullback samples (3 per training to prove conjugation)
+                        "pullback_samples": conj_receipts[i].pullback_samples if conj_receipts[i].pullback_samples else []
                     }
-                    for tw in train_witnesses
+                    for i, tw in enumerate(train_witnesses)
                 ],
                 "intersection_status": intersection_rc.status,
                 "intersection_admissible_count": intersection_rc.admissible_count,
@@ -1228,150 +1254,10 @@ def solve_task(
     hashes["unanimity"] = hash_bytes(str(sections["unanimity"]).encode())
 
     # ========================================================================
-    # Step 6.5: Apply witness law if available (compute law layer)
-    # ========================================================================
-
-    if law_status in ["witness_singleton"] and sigma_law is not None:
-        # Apply witness law: Y[p] = σ(X[φ(p)])
-        # phi_law can be:
-        # - List[PhiPiece] for geometric witness (component-wise transforms)
-        # - None for summary witness (identity φ, just apply σ globally)
-
-        from arc.op.copy import _eval_phi_star_at_pixel
-        from arc.op.tiebreak import lehmer_to_perm
-
-        # Convert Lehmer code to permutation array
-        # sigma_perm[c] = σ(c) for color c
-        sigma_perm = lehmer_to_perm(sigma_law.lehmer) if sigma_law.lehmer else []
-
-        # Create permutation lookup (handle missing colors with identity)
-        max_color = max(sigma_law.domain_colors) if sigma_law.domain_colors else 9
-        sigma_lookup = list(range(max_color + 1))  # Identity by default
-        for i, c in enumerate(sigma_law.domain_colors):
-            if i < len(sigma_perm):
-                sigma_lookup[c] = sigma_law.domain_colors[sigma_perm[i]]
-
-        law_layer_values = np.zeros((R_star, C_star), dtype=np.uint8)
-        law_mask = np.zeros((R_star, C_star), dtype=bool)
-
-        if phi_law is None:
-            # Summary witness: identity φ, apply σ globally
-            # WO-04 DEFENSIVE FIX: Check dimension compatibility
-            H_test, W_test = Xstar_t.shape
-            if (H_test, W_test) != (R_star, C_star):
-                # Dimension mismatch: identity φ cannot work
-                # This indicates witness failed to find geometric transformation
-                print(f"[WITNESS] WARNING: Summary witness with phi=None, but dimension mismatch:")
-                print(f"[WITNESS]   Input: {H_test}×{W_test}, Output: {R_star}×{C_star}")
-                print(f"[WITNESS] This task likely needs tiling/scaling that witness couldn't find.")
-                print(f"[WITNESS] Filling with background color (law_status remains witness_singleton/etc)")
-                # Fill with most common color from sigma domain (usually 0)
-                bg_color = sigma_law.domain_colors[0] if sigma_law and sigma_law.domain_colors else 0
-                law_layer_values[:, :] = bg_color
-                law_mask[:, :] = True
-            else:
-                # Dimensions match, can apply identity
-                for r in range(R_star):
-                    for c in range(C_star):
-                        source_color = Xstar_t[r, c]
-                        if source_color < len(sigma_lookup):
-                            law_layer_values[r, c] = sigma_lookup[source_color]
-                        else:
-                            law_layer_values[r, c] = source_color  # Identity fallback
-                        law_mask[r, c] = True
-        else:
-            # Geometric witness: apply φ globally (not component-wise)
-            # FIX: phi_law encodes transformation, apply to entire OUTPUT grid
-            # Each PhiPiece represents: Y = transform(X) where transform includes tiling
-            from arc.op.witness import _apply_d4_pose
-
-            # For witness law, φ maps entire input → entire output
-            # Y[r, c] = σ(X[φ^(-1)(r, c)])
-
-            # Apply each piece's transformation to fill law layer
-            # Pieces may have periodic tiling (r_per, c_per, r_res, c_res)
-
-            for piece_idx, piece in enumerate(phi_law):
-                # Get component bbox from input
-                if piece.comp_id >= len(comp_masks_test):
-                    continue
-
-                comp_mask, r0_in, c0_in = comp_masks_test[piece.comp_id]
-                bbox_h, bbox_w = comp_mask.shape
-
-                # Get inverse transformation
-                inv_pose = {0: 0, 1: 3, 2: 2, 3: 1, 4: 4, 5: 5, 6: 6, 7: 7}
-                inv_pose_id = inv_pose[piece.pose_id]
-
-                # For each output pixel, try to map it back to this component
-                # The output bbox is tiled r_per × c_per times from input bbox
-                for r_out in range(R_star):
-                    for c_out in range(C_star):
-                        # Step 1: Handle tiling - map output pixel to tiled bbox position
-                        # If r_per > 1, output is tiled r_per times vertically
-                        # Output pixel r_out maps to position (r_out % (bbox_h * r_per))
-
-                        # But we need to work in the tiled output bbox space
-                        # The tiled bbox has dimensions (bbox_h * r_per, bbox_w * c_per)
-                        tiled_bbox_h = bbox_h * piece.r_per
-                        tiled_bbox_w = bbox_w * piece.c_per
-
-                        # Subtract translation (dr, dc are in tiled bbox coordinates)
-                        r_shifted = r_out - piece.dr
-                        c_shifted = c_out - piece.dc
-
-                        # Check if in tiled bbox bounds
-                        if not (0 <= r_shifted < tiled_bbox_h and 0 <= c_shifted < tiled_bbox_w):
-                            continue
-
-                        # Step 2: Apply inverse pose (in tiled bbox frame)
-                        from arc.op.witness import _apply_d4_pose
-                        # Create indicator grid with tiled dimensions
-                        indicator = np.zeros((tiled_bbox_h, tiled_bbox_w), dtype=bool)
-                        indicator[r_shifted, c_shifted] = True
-                        # Apply inverse pose
-                        transformed = _apply_d4_pose(indicator, inv_pose_id)
-                        # Find where the 1 is
-                        coords = np.argwhere(transformed)
-                        if len(coords) != 1:
-                            continue
-
-                        r_tiled, c_tiled = coords[0]
-
-                        # Step 3: Map from tiled bbox to base bbox using modulo
-                        # If tiling, pixel (r_tiled, c_tiled) maps to (r_tiled % bbox_h, c_tiled % bbox_w)
-                        r_bbox = r_tiled % bbox_h
-                        c_bbox = c_tiled % bbox_w
-
-                        # Check if this position is actually in the component mask
-                        if not (0 <= r_bbox < bbox_h and 0 <= c_bbox < bbox_w):
-                            continue
-                        if not comp_mask[r_bbox, c_bbox]:
-                            continue
-
-                        # Step 4: Convert bbox-local to global input coordinates
-                        r_in = r_bbox + r0_in
-                        c_in = c_bbox + c0_in
-
-                        # Step 4: Check if source is in input bounds
-                        if 0 <= r_in < Xstar_t.shape[0] and 0 <= c_in < Xstar_t.shape[1]:
-                            # Read input color and apply σ
-                            source_color = Xstar_t[r_in, c_in]
-                            if source_color < len(sigma_lookup):
-                                law_layer_values[r_out, c_out] = sigma_lookup[source_color]
-                            else:
-                                law_layer_values[r_out, c_out] = source_color
-                            law_mask[r_out, c_out] = True
-
-    # ========================================================================
     # Step 7: Admit & Propagate (WO-11A) → Meet Selector (WO-09')
     # ========================================================================
 
-    # Color universe: sorted unique from Π(inputs only)
-    # Use Xt_list from Step 1 (Π presentation)
-    C = admit.color_universe(Xstar_t, Xt_list)
-
-    # Initialize domains D0 to all colors allowed
+    # Initialize domains D0 to all colors allowed (C computed earlier in Step 3.6)
     D0 = admit.empty_domains(R_star, C_star, C)
 
     # Build witness receipt for admit_from_witness
@@ -1424,30 +1310,31 @@ def solve_task(
             "per_train": per_train
         }
 
-    # Build engine receipt for admit_from_engine
-    engine_apply_rc_for_admit = None
-    if law_status == "engine" and law_layer_values is not None:
-        engine_apply_rc_for_admit = {
-            "engine": engine_used,
-            "Yt": law_layer_values
-        }
-
-    # Collect admits from all layers
-    A_w, rc_w = admit.admit_from_witness(
+    # Collect admits from all layers (now returns A, S, receipt)
+    A_w, S_w, rc_w = admit.admit_from_witness(
         Xstar_t if witness_rc_for_admit else np.zeros((R_star, C_star), dtype=np.uint8),
         witness_rc_for_admit if witness_rc_for_admit else {"intersection": {"status": "failed"}, "per_train": []},
         C
     )
 
-    A_e, rc_e = admit.admit_from_engine(
-        Xstar_t,
-        engine_apply_rc_for_admit,
-        C
-    )
+    # Engine admits: all engines now emit native (A, S, receipt)
+    if law_layer_admits is not None:
+        # Engine emitted native admits
+        A_e, S_e, engine_apply_rc = law_layer_admits
+        rc_e = admit.AdmitLayerRc(
+            name=f"engine:{engine_used}",
+            bitmap_hash=engine_apply_rc["bitmap_hash"],
+            scope_hash=engine_apply_rc["scope_hash"],
+            support_colors=C,  # Engine can emit any color
+            stats={"scope_bits": engine_apply_rc["scope_bits"]}
+        )
+    else:
+        # No engine succeeded: use empty admits (all-ones, S=0)
+        A_e, S_e, rc_e = admit.admit_from_engine(Xstar_t, None, C)
 
     # Unanimity: only applies when output shape == input shape
     H_star_input, W_star_input = Xstar_t.shape
-    A_u, rc_u = None, None
+    A_u, S_u, rc_u = None, None, None
     if (R_star == H_star_input) and (C_star == W_star_input):
         # Shapes match: build unanimity admits from truth blocks
         # Build uni_rc dict from unanimity_map
@@ -1457,18 +1344,18 @@ def solve_task(
                 for block_id, color in unanimity_map.items()
             ]
         }
-        A_u, rc_u = admit.admit_from_unanimity(truth_partition.labels, uni_rc_for_admit, C)
+        A_u, S_u, rc_u = admit.admit_from_unanimity(truth_partition.labels, uni_rc_for_admit, C)
     else:
         # Shapes differ: no unanimity admits
-        A_u, rc_u = admit.admit_from_unanimity(
+        A_u, S_u, rc_u = admit.admit_from_unanimity(
             np.zeros((R_star, C_star), dtype=int),
             {"blocks": []},
             C
         )
 
-    # Propagate to fixed point
-    admits_list = [A_w, A_e, A_u]
-    D_star, prop_rc = admit.propagate_fixed_point(D0, admits_list)
+    # Propagate to fixed point with scope-gated intersection
+    layers = [(A_w, S_w, "witness"), (A_e, S_e, "engine"), (A_u, S_u, "unanimity")]
+    D_star, prop_rc = admit.propagate_fixed_point(D0, layers, C)
 
     # Select from D* using frozen precedence
     # Build copy_values grid (free copy colors)
@@ -1487,28 +1374,33 @@ def solve_task(
         D_star,
         C,
         copy_values=copy_values_grid,
+        S_copy=S_w,
         unanimity_colors=unanimity_colors,
+        S_unanimity=S_u,
         bottom_color=0  # H2: frozen to 0
     )
 
-    # Store admit & propagate receipts
+    # Store admit & propagate receipts (with scope hashes)
     sections["admit"] = {
         "layers": [
             {
                 "name": rc_w.name,
                 "bitmap_hash": rc_w.bitmap_hash,
+                "scope_hash": rc_w.scope_hash,
                 "support_colors": rc_w.support_colors,
                 "stats": rc_w.stats
             },
             {
                 "name": rc_e.name,
                 "bitmap_hash": rc_e.bitmap_hash,
+                "scope_hash": rc_e.scope_hash,
                 "support_colors": rc_e.support_colors,
                 "stats": rc_e.stats
             },
             {
                 "name": rc_u.name,
                 "bitmap_hash": rc_u.bitmap_hash,
+                "scope_hash": rc_u.scope_hash,
                 "support_colors": rc_u.support_colors,
                 "stats": rc_u.stats
             }

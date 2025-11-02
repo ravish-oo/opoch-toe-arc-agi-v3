@@ -15,14 +15,16 @@ class AdmitLayerRc:
     """
     Admit layer receipt.
 
-    Contract (WO-11A):
+    Contract (WO-11A + Scope S):
     - name: layer identifier (e.g., "witness", "engine:column_dict", "unanimity")
     - bitmap_hash: BLAKE3 over bitset tensor bytes
+    - scope_hash: BLAKE3 over scope tensor bytes
     - support_colors: color universe this layer touched
-    - stats: optional debugging stats (set_bits, covered_pixels, etc.)
+    - stats: scope_bits, nontrivial_bits, removed_bottom_bits, etc.
     """
     name: str
     bitmap_hash: str
+    scope_hash: str
     support_colors: List[int]
     stats: Dict[str, int]
 
@@ -132,34 +134,73 @@ def _bitmap_hash(bitset: np.ndarray) -> str:
     return hash_bytes(bytes(bytes_view))
 
 
+def _normalize_scope(A: np.ndarray, S: np.ndarray, C: List[int]) -> None:
+    """
+    Normalize scope: if A[p] admits all colors, set S[p] = 0 (silent).
+
+    Contract (Scope S):
+    "Silence ≠ admit-all: if popcount(A[p]) == |C|, set S[p] = 0"
+
+    This ensures:
+    - Silent layers (S=0) don't win precedence
+    - Admit-all is equivalent to "no constraint" for selection
+
+    Args:
+        A: (H, W, K) admits bitset (modified in-place)
+        S: (H, W) scope (modified in-place)
+        C: color universe
+
+    Modifies:
+        S: sets S[p] = 0 where A[p] admits all colors
+    """
+    H, W, K = A.shape
+    num_colors = len(C)
+
+    for r in range(H):
+        for c in range(W):
+            if _popcount_bitset(A[r, c]) == num_colors:
+                S[r, c] = 0  # Force to silent
+
+
 # ============================================================================
 # Color universe
 # ============================================================================
 
-def color_universe(Xt: np.ndarray, train_Xt: List[np.ndarray]) -> List[int]:
+def color_universe(
+    Xt: np.ndarray,
+    train_Xt: List[np.ndarray],
+    bottom_color: int = 0
+) -> List[int]:
     """
     Return frozen color universe C = sorted unique(int) over Π(inputs only).
 
-    Contract (WO-11A + 02_determinism_addendum.md §1.3):
+    Contract (WO-11A + Scope S):
     - Build from inputs only (train inputs + test input)
+    - ALWAYS include bottom_color (default: 0)
     - Sorted ascending
     - Original color IDs (after palette mapping)
+
+    Why include bottom_color:
+    Guarantees containment invariant: when all layers are silent at pixel p,
+    D*[p] remains full and includes bottom_color, so bottom path never violates
+    containment (selected ∈ D*[p]).
 
     Args:
         Xt: test input in Π frame
         train_Xt: list of training inputs in Π frame
+        bottom_color: frozen bottom color (default 0)
 
     Returns:
-        Sorted list of unique color values
+        Sorted list of unique color values, always including bottom_color
     """
-    colors = set()
+    colors = set([int(bottom_color)])  # Force bottom into C
 
     # Collect from test input
-    colors.update(np.unique(Xt).tolist())
+    colors.update(int(c) for c in np.unique(Xt))
 
     # Collect from training inputs
     for X in train_Xt:
-        colors.update(np.unique(X).tolist())
+        colors.update(int(c) for c in np.unique(X))
 
     return sorted(colors)
 
@@ -210,14 +251,15 @@ def admit_from_witness(
     Xt: np.ndarray,
     witness_rc: dict,
     C: List[int]
-) -> Tuple[np.ndarray, AdmitLayerRc]:
+) -> Tuple[np.ndarray, np.ndarray, AdmitLayerRc]:
     """
-    Build A^w[p] bitsets from geometric witness.
+    Build A^w[p] bitsets and S^w[p] scope from geometric witness.
 
-    Contract (WO-11A):
+    Contract (WO-11A + Scope S):
     - Copy admits: for each φ piece, admit source color at target pixel
     - Recolor admits: if σ present, map through permutation
-    - Summary/failed witness: emit all-ones (no constraints)
+    - Summary/failed witness: emit all-ones (no constraints), S=0 (silent)
+    - Normalization: if A[p] admits all colors, S[p]=0
 
     Args:
         Xt: test input in Π frame (H, W)
@@ -225,7 +267,9 @@ def admit_from_witness(
         C: color universe
 
     Returns:
-        (A_w, receipt) where A_w is (H, W, K) bitset
+        (A_w, S_w, receipt) where:
+        - A_w is (H, W, K) bitset admits
+        - S_w is (H, W) uint8 scope (1=scoped, 0=silent)
     """
     H, W = Xt.shape
     K = _kwords(len(C))
@@ -233,9 +277,10 @@ def admit_from_witness(
     # Build color index lookup
     color_to_idx = {c: i for i, c in enumerate(C)}
 
-    # Initialize: all-ones (no constraints by default)
+    # Initialize: all-ones (no constraints by default), scope=0 (silent)
     A_w = np.empty((H, W, K), dtype=np.uint64)
     A_w.fill(np.uint64(0xFFFFFFFFFFFFFFFF))
+    S_w = np.zeros((H, W), dtype=np.uint8)  # Silent by default
 
     # Mask unused bits
     unused = (K * 64 - len(C))
@@ -246,11 +291,19 @@ def admit_from_witness(
     # Check if witness produced a singleton law
     intersection = witness_rc.get("intersection", {})
     if intersection.get("status") != "singleton":
-        # No constraint from witness
-        stats = {"set_bits": H * W * len(C), "pieces": 0, "sigma_moved": 0}
-        return A_w, AdmitLayerRc(
+        # No constraint from witness - silent (S=0)
+        stats = {
+            "set_bits": H * W * len(C),
+            "scope_bits": 0,
+            "nontrivial_bits": 0,
+            "removed_bottom_bits": 0,
+            "pieces": 0,
+            "sigma_moved": 0
+        }
+        return A_w, S_w, AdmitLayerRc(
             name="witness",
             bitmap_hash=_bitmap_hash(A_w),
+            scope_hash=hash_bytes(S_w.tobytes()),
             support_colors=C.copy(),
             stats=stats
         )
@@ -258,18 +311,27 @@ def admit_from_witness(
     # Check if any training is summary
     per_train = witness_rc.get("per_train", [])
     if any(t.get("kind") == "summary" for t in per_train):
-        # Summary witness: no constraints
-        stats = {"set_bits": H * W * len(C), "pieces": 0, "sigma_moved": 0}
-        return A_w, AdmitLayerRc(
+        # Summary witness: no constraints - silent (S=0)
+        stats = {
+            "set_bits": H * W * len(C),
+            "scope_bits": 0,
+            "nontrivial_bits": 0,
+            "removed_bottom_bits": 0,
+            "pieces": 0,
+            "sigma_moved": 0
+        }
+        return A_w, S_w, AdmitLayerRc(
             name="witness",
             bitmap_hash=_bitmap_hash(A_w),
+            scope_hash=hash_bytes(S_w.tobytes()),
             support_colors=C.copy(),
             stats=stats
         )
 
     # Geometric witness: implement copy admits + recolor admits (WO-10Z)
-    # Start with empty admits (no colors allowed)
+    # Start with empty admits (no colors allowed), scope=0 (will set to 1 where constrained)
     A_w = np.zeros((H, W, K), dtype=np.uint64)
+    S_w = np.zeros((H, W), dtype=np.uint8)
 
     # Extract phi pieces and sigma from first training (all should be same after intersection)
     first_train = per_train[0]
@@ -349,17 +411,41 @@ def admit_from_witness(
                 # Admit the color at target pixel
                 color_idx = color_to_idx[admitted_color]
                 _set_bit(A_w[target_r, target_c], color_idx)
+                S_w[target_r, target_c] = 1  # Mark as scoped
                 set_bits += 1
+
+    # Normalize: if A[p] admits all colors, set S[p] = 0 (silent)
+    _normalize_scope(A_w, S_w, C)
+
+    # Compute stats
+    bottom_idx = color_to_idx.get(0, -1)
+    removed_bottom = 0
+    nontrivial = 0
+    scope_bits = int(S_w.sum())
+
+    for r in range(H):
+        for c in range(W):
+            if S_w[r, c]:
+                # Check if removed bottom bit
+                if bottom_idx >= 0 and not _test_bit(A_w[r, c], bottom_idx):
+                    removed_bottom += 1
+                # Check if nontrivial (scoped and not admit-all)
+                if _popcount_bitset(A_w[r, c]) < len(C):
+                    nontrivial += 1
 
     stats = {
         "set_bits": int(set_bits),
+        "scope_bits": scope_bits,
+        "nontrivial_bits": nontrivial,
+        "removed_bottom_bits": removed_bottom,
         "pieces": pieces_count,
         "sigma_moved": len(sigma_map)
     }
 
-    return A_w, AdmitLayerRc(
+    return A_w, S_w, AdmitLayerRc(
         name="witness",
         bitmap_hash=_bitmap_hash(A_w),
+        scope_hash=hash_bytes(S_w.tobytes()),
         support_colors=C.copy(),
         stats=stats
     )
@@ -373,14 +459,14 @@ def admit_from_engine(
     Xt: np.ndarray,
     engine_apply_rc: Optional[dict],
     C: List[int]
-) -> Tuple[np.ndarray, AdmitLayerRc]:
+) -> Tuple[np.ndarray, np.ndarray, AdmitLayerRc]:
     """
-    Build A^e[p] bitsets from engine.
+    Build A^e[p] bitsets and S^e[p] scope from engine.
 
-    Contract (WO-11A + WO-10Z):
+    Contract (WO-11A + WO-10Z + Scope S):
     - Engine emits singleton admits per pixel where it painted
     - Extract Yt from engine_apply_rc and build singleton admits
-    - If engine didn't run or failed: return all-ones (no constraint)
+    - If engine didn't run or failed: return all-ones (no constraint), S=0 (silent)
 
     Args:
         Xt: test input in Π frame (H, W)
@@ -388,7 +474,9 @@ def admit_from_engine(
         C: color universe
 
     Returns:
-        (A_e, receipt) where A_e is (H, W, K) bitset
+        (A_e, S_e, receipt) where:
+        - A_e is (H, W, K) bitset admits
+        - S_e is (H, W) uint8 scope (1=scoped, 0=silent)
     """
     H, W = Xt.shape
     K = _kwords(len(C))
@@ -414,9 +502,10 @@ def admit_from_engine(
             pass
 
     if Yt is None:
-        # Engine didn't run or failed: return all-ones (no constraints)
+        # Engine didn't run or failed: return all-ones (no constraints), S=0 (silent)
         A_e = np.empty((H, W, K), dtype=np.uint64)
         A_e.fill(np.uint64(0xFFFFFFFFFFFFFFFF))
+        S_e = np.zeros((H, W), dtype=np.uint8)  # Silent
 
         # Mask unused bits
         unused = (K * 64 - len(C))
@@ -426,12 +515,16 @@ def admit_from_engine(
 
         stats = {
             "set_bits": H * W * len(C),
+            "scope_bits": 0,
+            "nontrivial_bits": 0,
+            "removed_bottom_bits": 0,
             "covered_pixels": 0,
             "singleton_admits": 0
         }
     else:
         # Engine succeeded: build singleton admits from Yt
         A_e = np.zeros((H, W, K), dtype=np.uint64)
+        S_e = np.zeros((H, W), dtype=np.uint8)
         singleton_count = 0
         covered = 0
 
@@ -443,6 +536,7 @@ def admit_from_engine(
                     # Admit singleton {color} at this pixel
                     color_idx = color_to_idx[color]
                     _set_bit(A_e[r, c], color_idx)
+                    S_e[r, c] = 1  # Mark as scoped
                     singleton_count += 1
                     covered += 1
                 else:
@@ -450,15 +544,38 @@ def admit_from_engine(
                     # This shouldn't happen if engine is correct
                     pass
 
+        # Normalize: if A[p] admits all colors, set S[p] = 0 (silent)
+        _normalize_scope(A_e, S_e, C)
+
+        # Compute stats
+        bottom_idx = color_to_idx.get(0, -1)
+        removed_bottom = 0
+        nontrivial = 0
+        scope_bits = int(S_e.sum())
+
+        for r in range(H):
+            for c in range(W):
+                if S_e[r, c]:
+                    # Check if removed bottom bit
+                    if bottom_idx >= 0 and not _test_bit(A_e[r, c], bottom_idx):
+                        removed_bottom += 1
+                    # Check if nontrivial (scoped and not admit-all)
+                    if _popcount_bitset(A_e[r, c]) < len(C):
+                        nontrivial += 1
+
         stats = {
             "set_bits": singleton_count,
+            "scope_bits": scope_bits,
+            "nontrivial_bits": nontrivial,
+            "removed_bottom_bits": removed_bottom,
             "covered_pixels": covered,
             "singleton_admits": singleton_count
         }
 
-    return A_e, AdmitLayerRc(
+    return A_e, S_e, AdmitLayerRc(
         name=f"engine:{engine_name}",
         bitmap_hash=_bitmap_hash(A_e),
+        scope_hash=hash_bytes(S_e.tobytes()),
         support_colors=C.copy(),
         stats=stats
     )
@@ -472,13 +589,13 @@ def admit_from_unanimity(
     truth_blocks: np.ndarray,
     uni_rc: dict,
     C: List[int]
-) -> Tuple[np.ndarray, AdmitLayerRc]:
+) -> Tuple[np.ndarray, np.ndarray, AdmitLayerRc]:
     """
-    Build A^u[p] bitsets from unanimity.
+    Build A^u[p] bitsets and S^u[p] scope from unanimity.
 
-    Contract (WO-11A):
-    - For unanimous block B with color u: admit {u} for all p ∈ B
-    - For non-unanimous blocks: admit all colors (no restriction)
+    Contract (WO-11A + Scope S):
+    - For unanimous block B with color u: admit {u} for all p ∈ B, S=1
+    - For non-unanimous blocks: admit all colors (no restriction), S=0
 
     Args:
         truth_blocks: (H, W) array of block IDs
@@ -486,7 +603,9 @@ def admit_from_unanimity(
         C: color universe
 
     Returns:
-        (A_u, receipt) where A_u is (H, W, K) bitset
+        (A_u, S_u, receipt) where:
+        - A_u is (H, W, K) bitset admits
+        - S_u is (H, W) uint8 scope (1=scoped, 0=silent)
     """
     H, W = truth_blocks.shape
     K = _kwords(len(C))
@@ -494,9 +613,10 @@ def admit_from_unanimity(
     # Build color index lookup
     color_to_idx = {c: i for i, c in enumerate(C)}
 
-    # Initialize: all-ones (no constraints)
+    # Initialize: all-ones (no constraints), S=0 (silent)
     A_u = np.empty((H, W, K), dtype=np.uint64)
     A_u.fill(np.uint64(0xFFFFFFFFFFFFFFFF))
+    S_u = np.zeros((H, W), dtype=np.uint8)
 
     # Mask unused bits
     unused = (K * 64 - len(C))
@@ -521,27 +641,53 @@ def admit_from_unanimity(
             continue
 
         # Find all pixels in this block
-        mask = (truth_blocks == block_id)
+        block_mask = (truth_blocks == block_id)
 
         # For these pixels, admit only the unanimous color
         # Set all bits to 0, then set only the color bit
-        A_u[mask] = np.uint64(0)
+        A_u[block_mask] = np.uint64(0)
 
         color_idx = color_to_idx[color]
         w = color_idx >> 6
         b = color_idx & 63
-        A_u[mask, w] = np.uint64(1) << np.uint64(b)
+        A_u[block_mask, w] = np.uint64(1) << np.uint64(b)
+
+        # Mark these pixels as scoped
+        S_u[block_mask] = 1
 
         unanimous_count += 1
 
+    # Normalize: if A[p] admits all colors, set S[p] = 0 (silent)
+    _normalize_scope(A_u, S_u, C)
+
+    # Compute stats
+    bottom_idx = color_to_idx.get(0, -1)
+    removed_bottom = 0
+    nontrivial = 0
+    scope_bits = int(S_u.sum())
+
+    for r in range(H):
+        for c in range(W):
+            if S_u[r, c]:
+                # Check if removed bottom bit
+                if bottom_idx >= 0 and not _test_bit(A_u[r, c], bottom_idx):
+                    removed_bottom += 1
+                # Check if nontrivial (scoped and not admit-all)
+                if _popcount_bitset(A_u[r, c]) < len(C):
+                    nontrivial += 1
+
     stats = {
         "unanimous_blocks": unanimous_count,
-        "set_bits": int(np.sum([_popcount_bitset(A_u[r, c]) for r in range(H) for c in range(W)]))
+        "set_bits": int(np.sum([_popcount_bitset(A_u[r, c]) for r in range(H) for c in range(W)])),
+        "scope_bits": scope_bits,
+        "nontrivial_bits": nontrivial,
+        "removed_bottom_bits": removed_bottom
     }
 
-    return A_u, AdmitLayerRc(
+    return A_u, S_u, AdmitLayerRc(
         name="unanimity",
         bitmap_hash=_bitmap_hash(A_u),
+        scope_hash=hash_bytes(S_u.tobytes()),
         support_colors=C.copy(),
         stats=stats
     )
@@ -553,24 +699,33 @@ def admit_from_unanimity(
 
 def propagate_fixed_point(
     domains: np.ndarray,
-    admits: List[np.ndarray]
+    layers: List[Tuple[np.ndarray, np.ndarray, str]],
+    C: List[int]
 ) -> Tuple[np.ndarray, PropagateRc]:
     """
-    Monotone lfp: iterate D ← D ∩ A^layer until no bit changes.
+    Monotone lfp with scope-gated intersection: D ← D ∩ A only where S[p]=1.
 
-    Contract (WO-11A):
+    Contract (WO-11A + Scope S):
     - Intersection order: frozen by caller (witness → engines → unanimity)
+    - Scope-gated: only intersect D[p] &= A[p] where S[p]=1
+    - Invariant: S[p]=0 ⇒ popcount(A[p]) = |C| (silent implies admit-all)
     - Terminates when no changes (monotone on finite lattice)
     - Returns (D*, receipt) with convergence stats
 
     Args:
         domains: initial D0, shape (H, W, K) uint64
-        admits: list of admit layers, each (H, W, K) uint64
+        layers: list of (A, S, name) tuples where:
+                - A: admit bitmap (H, W, K) uint64
+                - S: scope mask (H, W) uint8
+                - name: layer name (str)
+        C: color universe (for invariant checking)
 
     Returns:
         (D*, PropagateRc) where D* is fixed point
     """
     D = domains.copy()
+    H, W, K = D.shape
+    num_colors = len(C)
     passes = 0
     total_shrunk = 0
     per_pass = []
@@ -579,14 +734,21 @@ def propagate_fixed_point(
         passes += 1
         before = D.copy()
 
-        # Intersect all admit layers
-        for A in admits:
-            if A is None:
+        # Scope-gated intersection over all layers
+        for (A, S, name) in layers:
+            if A is None or S is None:
                 # Layer disabled/not present
                 continue
-            np.bitwise_and(D, A, out=D)
 
-        # Count changes (byte-wise XOR)
+            # Apply scope-gated intersection pixel by pixel
+            for r in range(H):
+                for c in range(W):
+                    if S[r, c] == 1:
+                        # Scoped: intersect this pixel's bitset
+                        D[r, c] &= A[r, c]
+                    # else: silent (S=0), skip intersection (preserves D[r,c])
+
+        # Count changes (byte-wise comparison)
         changes = np.count_nonzero(before != D)
         total_shrunk += changes
         per_pass.append(int(changes))
@@ -600,7 +762,6 @@ def propagate_fixed_point(
             raise RuntimeError(f"propagate_fixed_point: exceeded 100 passes (non-termination)")
 
     # Approximate shrunk pixels (changes / K)
-    K = D.shape[2]
     shrunk_pixels = total_shrunk // K if K > 0 else 0
 
     return D, PropagateRc(

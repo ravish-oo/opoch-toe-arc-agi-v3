@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from .hash import hash_bytes
+from .admit import empty_domains, _set_bit, _normalize_scope
 
 
 @dataclass
@@ -275,42 +276,43 @@ def fit_column_dict(
 def apply_column_dict(
     test_Xt: np.ndarray,
     fit_rc: EngineFitRc,
-) -> EngineApplyRc:
+    C: List[int]
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
     """
-    Apply Column-Dictionary to test.
+    Apply Column-Dictionary to test (emit native admits).
 
-    Contract (WO-10):
+    Contract (WO-10 + WO-11A):
     1. Compute signatures on Π(test)
     2. RLE squash → S_*
     3. For each s in S_*:
        - If s in dict → append dict[s]
        - Else → FAIL-CLOSED {"error":"UNSEEN_SIGNATURE","signature":s}
     4. final_shape = (R, len(S_*))
+    5. Emit singleton admits
 
     Args:
         test_Xt: Π(test) grid (H*, W*)
         fit_rc: EngineFitRc from fit_column_dict
+        C: Color universe (sorted unique colors)
 
     Returns:
-        EngineApplyRc with ok=True if all lookups succeed, else ok=False
+        (A, S, receipt): Admit bitmap, scope mask, and receipt dict
     """
     engine = "column_dict"
 
     # Check fit succeeded
     if not fit_rc.ok:
-        receipt = {
+        A = empty_domains(0, 0, C)
+        S = np.zeros((0, 0), dtype=np.uint8)
+        return A, S, {
             "engine": engine,
-            "ok": False,
             "error": "FIT_FAILED",
             "fit_receipt": fit_rc.receipt,
+            "output_shape": [0, 0],
+            "scope_bits": 0,
+            "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+            "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
         }
-        return EngineApplyRc(
-            engine=engine,
-            ok=False,
-            Yt=None,
-            final_shape=None,
-            receipt=receipt,
-        )
 
     schema_id = fit_rc.receipt["schema_id"]
     dict_hex = fit_rc.receipt["dict"]
@@ -358,22 +360,20 @@ def apply_column_dict(
 
     # Check for unseen signatures
     if unseen:
-        receipt = {
+        A = empty_domains(0, 0, C)
+        S = np.zeros((0, 0), dtype=np.uint8)
+        return A, S, {
             "engine": engine,
-            "ok": False,
             "schema_id": schema_id,
             "error": "UNSEEN_SIGNATURE",
             "test_squashed": test_squashed,
             "lookup": lookup,
             "unseen": unseen,
+            "output_shape": [0, 0],
+            "scope_bits": 0,
+            "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+            "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
         }
-        return EngineApplyRc(
-            engine=engine,
-            ok=False,
-            Yt=None,
-            final_shape=None,
-            receipt=receipt,
-        )
 
     # Concatenate columns
     if not reconstructed_cols:
@@ -383,24 +383,41 @@ def apply_column_dict(
 
     final_shape = (R, len(test_squashed))
 
+    # Build color index lookup
+    color_to_idx = {c: i for i, c in enumerate(C)}
+
+    # Initialize admits and scope
+    R_out, C_out = final_shape
+    A = empty_domains(R_out, C_out, C)
+    S = np.zeros((R_out, C_out), dtype=np.uint8)
+
+    # Emit singleton admits from reconstructed grid
+    for r in range(R_out):
+        for c in range(C_out):
+            color = int(Yt[r, c])
+            if color in color_to_idx:
+                color_idx = color_to_idx[color]
+                A[r, c, :] = 0
+                _set_bit(A[r, c], color_idx)
+                S[r, c] = 1
+
+    # Normalize
+    _normalize_scope(A, S, C)
+
     # Build receipt (success)
     receipt = {
         "engine": engine,
-        "ok": True,
         "schema_id": schema_id,
         "test_squashed": test_squashed,
         "lookup": lookup,
-        "final_shape": list(final_shape),
+        "output_shape": list(final_shape),
         "unseen": [],
+        "scope_bits": int(S.sum()),
+        "bitmap_hash": hash_bytes(A.tobytes()),
+        "scope_hash": hash_bytes(S.tobytes())
     }
 
-    return EngineApplyRc(
-        engine=engine,
-        ok=True,
-        Yt=Yt,
-        final_shape=final_shape,
-        receipt=receipt,
-    )
+    return A, S, receipt
 
 
 # ============================================================================
@@ -676,47 +693,47 @@ def apply_macro_tiling(
     test_Xt: np.ndarray,
     truth_test: Any,  # TruthRc from WO-05
     fit_rc: EngineFitRc,
-) -> EngineApplyRc:
+    C: List[int],
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
     """
-    Apply Macro-Tiling to test (WO-10A).
+    Apply Macro-Tiling to test (WO-10A + WO-11A).
 
-    Contract (WO-10A):
+    Contract (WO-10A + WO-11A):
     1. Use same bands and tile rules from fit_rc
     2. For each tile in test, apply learned color decision
-    3. Render test output Y* tile by tile
-    4. Return EngineApplyRc with Yt, final_shape, and per-tile decision receipts
+    3. Emit singleton admits for each tile region
+    4. Return (A, S, receipt) native admits
 
     Algorithm:
     - Extract row_bands, col_bands, and tile_rules from fit_rc
-    - For each tile (r_idx, c_idx), fill with tile_rules[(r_idx, c_idx)]
-    - Build Yt by filling all tiles
-    - Return full receipts with per-tile application
+    - For each tile (r_idx, c_idx), emit singleton admits with tile_rules[(r_idx, c_idx)]
+    - Build admit bitmap and scope mask
+    - Return (A, S, receipt) with hashes
 
     Args:
         test_Xt: Π(test) grid (H*, W*)
         truth_test: TruthRc for test
         fit_rc: EngineFitRc from fit_macro_tiling
+        C: Color universe (sorted unique colors)
 
     Returns:
-        EngineApplyRc with ok=True if apply succeeds, else ok=False
+        (A, S, receipt): Admit bitmap, scope mask, and application receipt
     """
     engine = "macro_tiling"
 
     # Check fit succeeded
     if not fit_rc.ok:
+        A = empty_domains(0, 0, C)
+        S = np.zeros((0, 0), dtype=np.uint8)
         receipt = {
             "engine": engine,
-            "ok": False,
             "error": "FIT_FAILED",
             "fit_receipt": fit_rc.receipt,
+            "scope_bits": 0,
+            "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+            "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
         }
-        return EngineApplyRc(
-            engine=engine,
-            ok=False,
-            Yt=None,
-            final_shape=None,
-            receipt=receipt,
-        )
+        return A, S, receipt
 
     # Extract learned parameters from fit_rc
     row_bands = fit_rc.receipt["row_bands"]
@@ -738,28 +755,30 @@ def apply_macro_tiling(
     num_col_tiles = len(col_bands) - 1
 
     if num_row_tiles <= 0 or num_col_tiles <= 0:
+        A = empty_domains(0, 0, C)
+        S = np.zeros((0, 0), dtype=np.uint8)
         receipt = {
             "engine": engine,
-            "ok": False,
             "error": "INVALID_BANDS",
             "row_bands": row_bands,
             "col_bands": col_bands,
+            "scope_bits": 0,
+            "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+            "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
         }
-        return EngineApplyRc(
-            engine=engine,
-            ok=False,
-            Yt=None,
-            final_shape=None,
-            receipt=receipt,
-        )
+        return A, S, receipt
 
     H_out = row_bands[-1]
     W_out = col_bands[-1]
 
-    # Initialize output
-    Yt = np.zeros((H_out, W_out), dtype=dtype)
+    # Build color index lookup
+    color_to_idx = {c: i for i, c in enumerate(C)}
 
-    # Apply tile rules
+    # Initialize admits and scope
+    A = empty_domains(H_out, W_out, C)
+    S = np.zeros((H_out, W_out), dtype=np.uint8)
+
+    # Apply tile rules and emit singleton admits
     tile_applications = []
     for r_idx in range(num_row_tiles):
         r_start = row_bands[r_idx]
@@ -772,24 +791,28 @@ def apply_macro_tiling(
             # Lookup tile rule
             if (r_idx, c_idx) not in tile_rules:
                 # Missing tile rule (shouldn't happen if fit succeeded)
+                A = empty_domains(0, 0, C)
+                S = np.zeros((0, 0), dtype=np.uint8)
                 receipt = {
                     "engine": engine,
-                    "ok": False,
                     "error": "MISSING_TILE_RULE",
                     "tile": [r_idx, c_idx],
+                    "scope_bits": 0,
+                    "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+                    "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
                 }
-                return EngineApplyRc(
-                    engine=engine,
-                    ok=False,
-                    Yt=None,
-                    final_shape=None,
-                    receipt=receipt,
-                )
+                return A, S, receipt
 
             decision_color = tile_rules[(r_idx, c_idx)]
 
-            # Fill tile
-            Yt[r_start:r_end, c_start:c_end] = decision_color
+            # Emit singleton admits for this tile
+            if decision_color in color_to_idx:
+                color_idx = color_to_idx[decision_color]
+                for r in range(r_start, r_end):
+                    for c in range(c_start, c_end):
+                        A[r, c, :] = 0
+                        _set_bit(A[r, c], color_idx)
+                        S[r, c] = 1
 
             # Record application
             tile_applications.append({
@@ -800,25 +823,24 @@ def apply_macro_tiling(
                 "decision": int(decision_color),
             })
 
+    # Normalize
+    _normalize_scope(A, S, C)
+
     final_shape = (H_out, W_out)
 
     # Build receipt (success)
     receipt = {
         "engine": engine,
-        "ok": True,
         "row_bands": row_bands,
         "col_bands": col_bands,
         "tile_applications": tile_applications,
         "final_shape": list(final_shape),
+        "scope_bits": int(S.sum()),
+        "bitmap_hash": hash_bytes(A.tobytes()),
+        "scope_hash": hash_bytes(S.tobytes())
     }
 
-    return EngineApplyRc(
-        engine=engine,
-        ok=True,
-        Yt=Yt,
-        final_shape=final_shape,
-        receipt=receipt,
-    )
+    return A, S, receipt
 
 
 def fit_pooled_blocks(

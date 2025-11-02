@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from arc.op.hash import hash_bytes
+from arc.op.admit import empty_domains, _set_bit, _normalize_scope
 
 
 @dataclass
@@ -297,23 +298,25 @@ def apply_slice_stack(
     test_Xt: np.ndarray,
     truth_test: Any,
     fit_rc: SliceStackFitRc,
+    C: List[int],
     expected_shape: Optional[Tuple[int, int]] = None
-) -> Tuple[np.ndarray, Dict]:
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
     """
-    Apply slice-stack engine to test input.
+    Apply slice-stack engine to test input (emit native admits).
 
-    Contract (WO-10E):
-    Apply dictionary lookup and concatenation on test.
+    Contract (WO-10E + WO-11A):
+    Apply dictionary lookup and concatenation on test, emit singleton admits.
     Fail-closed on UNSEEN_SIGNATURE.
 
     Args:
         test_Xt: Test input in Π frame
         truth_test: Truth partition for test (not used currently)
         fit_rc: Fit receipt from fit_slice_stack
+        C: Color universe (sorted unique colors)
         expected_shape: Optional (R, C) from WO-02
 
     Returns:
-        (Y_t, apply_rc): Output in Π frame and application receipt
+        (A, S, apply_rc): Admit bitmap, scope mask, and application receipt
     """
     axis = fit_rc.axis
 
@@ -352,14 +355,19 @@ def apply_slice_stack(
 
     if missing_signatures:
         # Fail-closed on UNSEEN_SIGNATURE
-        return np.zeros((0, 0), dtype=np.uint8), {
+        A = empty_domains(0, 0, C)
+        S = np.zeros((0, 0), dtype=np.uint8)
+        return A, S, {
             "engine": "slice_stack",
             "error": "UNSEEN_SIGNATURE",
             "missing_slice_indices": missing_signatures,
-            "output_shape": [0, 0]
+            "output_shape": [0, 0],
+            "scope_bits": 0,
+            "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+            "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
         }
 
-    # Concatenate slices to form output
+    # Concatenate slices to form output grid (for shape determination)
     if axis == "cols":
         # Stack columns horizontally
         Y_t = np.column_stack(output_slices)
@@ -368,26 +376,52 @@ def apply_slice_stack(
         Y_t = np.row_stack(output_slices)
 
     # Check expected shape
-    R, C = Y_t.shape
+    R, C_out = Y_t.shape
     if expected_shape is not None:
         R_exp, C_exp = expected_shape
-        if (R, C) != (R_exp, C_exp):
+        if (R, C_out) != (R_exp, C_exp):
             # Shape mismatch
-            return Y_t, {
+            A = empty_domains(R, C_out, C)
+            S = np.zeros((R, C_out), dtype=np.uint8)
+            return A, S, {
                 "engine": "slice_stack",
-                "output_shape": [R, C],
+                "output_shape": [R, C_out],
                 "expected_shape": [R_exp, C_exp],
                 "shape_mismatch": True,
-                "output_hash": hash_bytes(Y_t.tobytes())
+                "scope_bits": 0,
+                "bitmap_hash": hash_bytes(A.tobytes()),
+                "scope_hash": hash_bytes(S.tobytes())
             }
+
+    # Build color index lookup
+    color_to_idx = {c: i for i, c in enumerate(C)}
+
+    # Initialize admits and scope
+    A = empty_domains(R, C_out, C)
+    S = np.zeros((R, C_out), dtype=np.uint8)
+
+    # Emit singleton admits from Y_t
+    for r in range(R):
+        for c in range(C_out):
+            color = int(Y_t[r, c])
+            if color in color_to_idx:
+                color_idx = color_to_idx[color]
+                A[r, c, :] = 0
+                _set_bit(A[r, c], color_idx)
+                S[r, c] = 1
+
+    # Normalize
+    _normalize_scope(A, S, C)
 
     # Build receipt
     apply_rc = {
         "engine": "slice_stack",
         "axis": axis,
         "num_slices": num_slices,
-        "output_shape": [R, C],
-        "output_hash": hash_bytes(Y_t.tobytes())
+        "output_shape": [R, C_out],
+        "scope_bits": int(S.sum()),
+        "bitmap_hash": hash_bytes(A.tobytes()),
+        "scope_hash": hash_bytes(S.tobytes())
     }
 
-    return Y_t, apply_rc
+    return A, S, apply_rc

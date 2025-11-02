@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from arc.op.hash import hash_bytes
+from arc.op.admit import empty_domains, _set_bit, _normalize_scope
 
 
 @dataclass
@@ -306,22 +307,24 @@ def apply_pooled_blocks(
     test_Xt: np.ndarray,
     truth_test: Any,
     fit_rc: PooledBlocksFitRc,
+    C: List[int],
     expected_shape: Optional[Tuple[int, int]] = None
-) -> Tuple[np.ndarray, Dict]:
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
     """
-    Apply pooled-blocks engine to test input.
+    Apply pooled-blocks engine to test input (emit native admits).
 
-    Contract (WO-10C):
-    Apply same bands and rule on test.
+    Contract (WO-10C + WO-11A):
+    Apply same bands and rule on test, emit singleton admits.
 
     Args:
         test_Xt: Test input in Π frame
         truth_test: Truth partition for test (not used, bands from fit_rc)
         fit_rc: Fit receipt from fit_pooled_blocks
+        C: Color universe (sorted unique colors)
         expected_shape: Optional (R, C) from WO-02
 
     Returns:
-        (Y_t, apply_rc): Output in Π frame and application receipt
+        (A, S, apply_rc): Admit bitmap, scope mask, and application receipt
     """
     # Compute stage-1 votes
     stage1_grid, stage1_counts_test = _compute_stage1_votes(
@@ -335,25 +338,52 @@ def apply_pooled_blocks(
     stage2_pooled_grid = _compute_stage2_pooled(stage1_grid, fit_rc.pool_shape)
 
     # Check shape
-    R, C = stage2_pooled_grid.shape
+    R, C_out = stage2_pooled_grid.shape
     if expected_shape is not None:
         R_exp, C_exp = expected_shape
-        if (R, C) != (R_exp, C_exp):
-            # Shape mismatch - fail
-            return stage2_pooled_grid, {
+        if (R, C_out) != (R_exp, C_exp):
+            # Shape mismatch - fail with empty admits
+            A = empty_domains(R, C_out, C)
+            S = np.zeros((R, C_out), dtype=np.uint8)
+            return A, S, {
                 "engine": "pooled_blocks",
-                "output_shape": [R, C],
+                "output_shape": [R, C_out],
                 "expected_shape": [R_exp, C_exp],
                 "shape_mismatch": True,
-                "output_hash": hash_bytes(stage2_pooled_grid.tobytes())
+                "scope_bits": 0,
+                "bitmap_hash": hash_bytes(A.tobytes()),
+                "scope_hash": hash_bytes(S.tobytes())
             }
+
+    # Build color index lookup
+    color_to_idx = {c: i for i, c in enumerate(C)}
+
+    # Initialize admits and scope
+    A = empty_domains(R, C_out, C)
+    S = np.zeros((R, C_out), dtype=np.uint8)
+
+    # Emit singleton admits from stage2_pooled_grid
+    for r in range(R):
+        for c in range(C_out):
+            color = int(stage2_pooled_grid[r, c])
+            if color in color_to_idx:
+                color_idx = color_to_idx[color]
+                # Clear all bits, set only this color
+                A[r, c, :] = 0
+                _set_bit(A[r, c], color_idx)
+                S[r, c] = 1  # Mark as scoped
+
+    # Normalize
+    _normalize_scope(A, S, C)
 
     # Build receipt
     apply_rc = {
         "engine": "pooled_blocks",
-        "output_shape": [R, C],
-        "stage1_counts_sample": {k: v for i, (k, v) in enumerate(stage1_counts_test.items()) if i < 5},  # Sample
-        "output_hash": hash_bytes(stage2_pooled_grid.tobytes())
+        "output_shape": [R, C_out],
+        "stage1_counts_sample": {k: v for i, (k, v) in enumerate(stage1_counts_test.items()) if i < 5},
+        "scope_bits": int(S.sum()),
+        "bitmap_hash": hash_bytes(A.tobytes()),
+        "scope_hash": hash_bytes(S.tobytes())
     }
 
-    return stage2_pooled_grid, apply_rc
+    return A, S, apply_rc

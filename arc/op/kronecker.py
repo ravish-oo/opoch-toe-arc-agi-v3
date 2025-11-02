@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from arc.op.hash import hash_bytes
+from arc.op.admit import empty_domains, _set_bit, _normalize_scope
 
 
 @dataclass
@@ -268,23 +269,25 @@ def apply_kronecker(
     test_Xt: np.ndarray,
     truth_test: Any,
     fit_rc: KroneckerFitRc,
+    C: List[int],
     expected_shape: Optional[Tuple[int, int]] = None
-) -> Tuple[np.ndarray, Dict]:
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
     """
-    Apply Kronecker tiling engine to test input.
+    Apply Kronecker tiling engine to test input (emit native admits).
 
-    Contract (WO-10F):
-    Replicate base tile to expected shape.
+    Contract (WO-10F + WO-11A):
+    Replicate base tile to expected shape, emit singleton admits.
     Fail-closed if expected_shape not divisible by tile_shape.
 
     Args:
         test_Xt: Test input in Π frame (not used, output is tile replication)
         truth_test: Truth partition for test (not used)
         fit_rc: Fit receipt from fit_kronecker
+        C: Color universe (sorted unique colors)
         expected_shape: Optional (R, C) from WO-02
 
     Returns:
-        (Y_t, apply_rc): Output in Π frame and application receipt
+        (A, S, apply_rc): Admit bitmap, scope mask, and application receipt
     """
     r0, c0 = fit_rc.tile_shape
 
@@ -294,40 +297,72 @@ def apply_kronecker(
 
     # Determine output shape
     if expected_shape is not None:
-        R, C = expected_shape
+        R, C_out = expected_shape
     else:
         # No expected shape - cannot determine replication count
-        return np.zeros((0, 0), dtype=np.uint8), {
+        A = empty_domains(0, 0, C)
+        S = np.zeros((0, 0), dtype=np.uint8)
+        return A, S, {
             "engine": "kronecker",
             "error": "NO_EXPECTED_SHAPE",
-            "output_shape": [0, 0]
+            "output_shape": [0, 0],
+            "scope_bits": 0,
+            "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+            "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
         }
 
     # Check divisibility
-    if R % r0 != 0 or C % c0 != 0:
+    if R % r0 != 0 or C_out % c0 != 0:
         # Shape not divisible by tile
-        return np.zeros((0, 0), dtype=np.uint8), {
+        A = empty_domains(0, 0, C)
+        S = np.zeros((0, 0), dtype=np.uint8)
+        return A, S, {
             "engine": "kronecker",
             "error": "SHAPE_NOT_DIVISIBLE",
-            "expected_shape": [R, C],
+            "expected_shape": [R, C_out],
             "tile_shape": [r0, c0],
-            "output_shape": [0, 0]
+            "output_shape": [0, 0],
+            "scope_bits": 0,
+            "bitmap_hash": hash_bytes(A.tobytes()) if A.size > 0 else "",
+            "scope_hash": hash_bytes(S.tobytes()) if S.size > 0 else ""
         }
 
     # Compute repetitions
     k_r = R // r0
-    k_c = C // c0
+    k_c = C_out // c0
 
-    # Replicate tile
+    # Replicate tile (for determining colors)
     Y_t = np.tile(base_tile, (k_r, k_c))
+
+    # Build color index lookup
+    color_to_idx = {c: i for i, c in enumerate(C)}
+
+    # Initialize admits and scope
+    A = empty_domains(R, C_out, C)
+    S = np.zeros((R, C_out), dtype=np.uint8)
+
+    # Emit singleton admits from tiled pattern
+    for r in range(R):
+        for c in range(C_out):
+            color = int(Y_t[r, c])
+            if color in color_to_idx:
+                color_idx = color_to_idx[color]
+                A[r, c, :] = 0
+                _set_bit(A[r, c], color_idx)
+                S[r, c] = 1
+
+    # Normalize
+    _normalize_scope(A, S, C)
 
     # Build receipt
     apply_rc = {
         "engine": "kronecker",
         "tile_shape": [r0, c0],
         "reps": [k_r, k_c],
-        "output_shape": [R, C],
-        "output_hash": hash_bytes(Y_t.tobytes())
+        "output_shape": [R, C_out],
+        "scope_bits": int(S.sum()),
+        "bitmap_hash": hash_bytes(A.tobytes()),
+        "scope_hash": hash_bytes(S.tobytes())
     }
 
-    return Y_t, apply_rc
+    return A, S, apply_rc

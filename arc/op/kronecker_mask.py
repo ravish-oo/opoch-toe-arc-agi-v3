@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from arc.op.hash import hash_bytes
+from arc.op.admit import empty_domains, _set_bit, _normalize_scope
 
 
 @dataclass
@@ -147,13 +148,14 @@ def apply_kronecker_mask(
     test_Xt: np.ndarray,
     truth_test: Any,
     fit_rc: KroneckerMaskFitRc,
+    C: List[int],
     expected_shape: Optional[Tuple[int, int]] = None
-) -> Tuple[np.ndarray, Dict[str, Any]]:
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
     """
-    Apply Kronecker-mask law to test input.
+    Apply Kronecker-mask law to test input (emit native admits).
 
-    Contract (WO-10K):
-    - Compute Y_test = (X_test != 0) ⊗ X_test
+    Contract (WO-10K + WO-11A):
+    - Compute Y_test = (X_test != 0) ⊗ X_test, emit singleton admits
     - Verify shape matches expected (from shape synthesis) if provided
     - Return error if shape mismatch
 
@@ -161,11 +163,13 @@ def apply_kronecker_mask(
         test_Xt: Test input (H, W) in Π frame
         truth_test: Truth partition for test (unused for this engine)
         fit_rc: Fit receipt from fit_kronecker_mask
+        C: Color universe (sorted unique colors)
         expected_shape: Expected output shape (R, C) from shape synthesis
 
     Returns:
-        (Y_test, apply_rc) where:
-        - Y_test: Predicted output (R, C) in Π frame
+        (A, S, apply_rc) where:
+        - A: Admit bitmap (R, C, K)
+        - S: Scope mask (R, C)
         - apply_rc: Application receipt {"error": str | None, "shape": [R, C]}
     """
     # Compute mask-Kronecker
@@ -175,18 +179,47 @@ def apply_kronecker_mask(
     # Verify shape if expected_shape provided
     if expected_shape is not None:
         if Y_test.shape != expected_shape:
-            return np.zeros(expected_shape, dtype=np.uint8), {
+            R_exp, C_exp = expected_shape
+            A = empty_domains(R_exp, C_exp, C)
+            S = np.zeros((R_exp, C_exp), dtype=np.uint8)
+            return A, S, {
                 "error": f"SHAPE_MISMATCH: Kronecker-mask produced {Y_test.shape}, expected {expected_shape}",
-                "shape": Y_test.shape
+                "shape": list(Y_test.shape),
+                "scope_bits": 0,
+                "bitmap_hash": hash_bytes(A.tobytes()),
+                "scope_hash": hash_bytes(S.tobytes())
             }
+
+    # Build color index lookup
+    color_to_idx = {c: i for i, c in enumerate(C)}
+
+    # Initialize admits and scope
+    R, C_out = Y_test.shape
+    A = empty_domains(R, C_out, C)
+    S = np.zeros((R, C_out), dtype=np.uint8)
+
+    # Emit singleton admits from Kronecker-mask result
+    for r in range(R):
+        for c in range(C_out):
+            color = int(Y_test[r, c])
+            if color in color_to_idx:
+                color_idx = color_to_idx[color]
+                A[r, c, :] = 0
+                _set_bit(A[r, c], color_idx)
+                S[r, c] = 1
+
+    # Normalize
+    _normalize_scope(A, S, C)
 
     # Success
     apply_rc = {
         "error": None,
-        "shape": list(Y_test.shape),
+        "shape": [R, C_out],
         "test_input_hash": hash_bytes(test_Xt.tobytes()),
         "test_mask_hash": hash_bytes(M_test.tobytes()),
-        "test_output_hash": hash_bytes(Y_test.tobytes())
+        "scope_bits": int(S.sum()),
+        "bitmap_hash": hash_bytes(A.tobytes()),
+        "scope_hash": hash_bytes(S.tobytes())
     }
 
-    return Y_test, apply_rc
+    return A, S, apply_rc
