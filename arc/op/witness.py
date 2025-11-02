@@ -846,9 +846,18 @@ def solve_witness_for_pair(
         moved_count=0
     )
 
+    # Create PhiRc with empty pieces but preserved geometric_trials
+    # This enables debugging: we can see WHICH D4 poses were tried and WHY they failed
+    phi_rc = PhiRc(
+        pieces=[],              # No successful pieces
+        bbox_equal=[],          # No matches
+        domain_pixels=0,        # No domain
+        geometric_trials=geometric_trials  # Preserve all trial attempts for debugging
+    )
+
     witness_rc = TrainWitnessRc(
         kind="contradictory",
-        phi=None,  # No geometric transformation found
+        phi=phi_rc,  # Include PhiRc with trials (not None)
         sigma=sigma,
         foreground_colors=None,
         background_colors=None,

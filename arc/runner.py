@@ -1014,7 +1014,7 @@ def solve_task(
                         "train_id": tw["train_id"],
                         "phi_kind": tw["receipt"].kind,  # "geometric" or "contradictory"
                         "sigma_domain_size": len(tw["sigma"].domain),
-                        "geometric_trials": tw.get("geometric_trials", []) if tw["phi_pieces"] else None,  # WO-05: tiling debug
+                        "geometric_trials": tw.get("geometric_trials", []),  # Include for all (geometric + contradictory)
                         # WO-04: Pullback samples (3 per training to prove conjugation)
                         "pullback_samples": conj_receipts[i].pullback_samples if conj_receipts[i].pullback_samples else []
                     }
@@ -1052,7 +1052,7 @@ def solve_task(
                         "phi_pieces_count": len(tw["phi_pieces"]) if tw["phi_pieces"] else 0,
                         "sigma_domain_size": len(tw["sigma"].domain) if hasattr(tw["sigma"], 'domain') else len(tw["sigma"].domain_colors) if hasattr(tw["sigma"], 'domain_colors') else 0,
                         "sigma_lehmer_len": len(tw["sigma"].lehmer),
-                        "geometric_trials": tw.get("geometric_trials", []) if tw["receipt"].kind == "geometric" else None
+                        "geometric_trials": tw.get("geometric_trials", [])  # Include for all (geometric + contradictory)
                     }
                     for tw in train_witnesses
                 ] if train_witnesses else [],
