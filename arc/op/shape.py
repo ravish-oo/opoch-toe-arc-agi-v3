@@ -2,9 +2,11 @@
 # WO-02: Shape S synthesizer (exact + least)
 # Implements 00_math_spec.md §2, 01_engineering_spec.md §3, 02_determinism_addendum.md §1.1
 
-# Registered COUNT qualifiers (frozen):
+# Registered COUNT qualifiers (frozen per WO-02 patch):
 # - q_rows: R=α1·H+β1, C=α2·H+β2 (param serialization: <4><α1><β1><α2><β2>)
 # - q_hw_bilinear: R=a1·H+b1, C=c2·W+d2·H+e2 (param serialization: <5><a1><b1><c2><d2><e2>)
+# - q_wh_bilinear: R=a1·W+b1·H+c1, C=a2·W+b2 (param serialization: <5><a1><b1><c1><a2><b2>)
+# - q_components: R=a1·q+b1, C=a2·q+b2 where q=#components (param serialization: <4><a1><b1><a2><b2>)
 #
 # Activation rule: COUNT candidate considered ONLY if equality proof exists
 # using a registered qualifier on ALL trainings.
@@ -186,8 +188,9 @@ def _fit_affine(pairs: list[tuple[str, tuple[int, int], tuple[int, int]]]) -> tu
         if S(H, W) != (R, C):
             return None
 
-    # Serialize params: <4><a><b><c><d>
-    params = frame_params(a, b, c, d, signed=False)
+    # Serialize params: <4><a><b><c><d> (ZigZag for signed coefficients)
+    # Contract (02_determinism_addendum.md line 16): signed integers use ZigZag LEB128
+    params = frame_params(a, b, c, d, signed=True)
     extras: dict = {}
 
     return S, params, extras
@@ -195,7 +198,7 @@ def _fit_affine(pairs: list[tuple[str, tuple[int, int], tuple[int, int]]]) -> tu
 
 def _fit_period(
     pairs: list[tuple[str, tuple[int, int], tuple[int, int]]],
-    presented_inputs: list[tuple[str, np.ndarray]] | None
+    presented_inputs: list[tuple[str, np.ndarray]]
 ) -> tuple[SFn, bytes, dict] | None:
     """
     Fit PERIOD_MULTIPLE family: (kr·pr^min, kc·pc^min).
@@ -203,58 +206,76 @@ def _fit_period(
     Contract (00_math_spec.md §2):
     "Period-multiple: compute minimal per-line periods p_r(i), p_c(j) (exact, KMP)"
 
+    Contract (WO-02 reconciled patch):
+    Actually use presented grids to compute periods (was bug: always returned None)
+
     Args:
         pairs: [(id, (H,W), (R,C))]
-        presented_inputs: [(id, G)] - needed to compute periods
+        presented_inputs: [(id, G)] - REQUIRED to compute periods
 
     Returns:
         (S_fn, params_bytes, extras) if exact fit, None otherwise
     """
-    if presented_inputs is None:
-        return None  # cannot compute periods without grids
-
-    # Compute LCM of minimal periods across all inputs
+    # Compute LCM of minimal periods across all presented inputs
     pr_lcm = 1
     pc_lcm = 1
+
     for _, G in presented_inputs:
         pr, pc = _min_periods_grid(G)
-        pr_lcm = _lcm(pr_lcm, pr)
-        pc_lcm = _lcm(pc_lcm, pc)
+        if pr > 1:
+            pr_lcm = _lcm(pr_lcm, pr)
+        if pc > 1:
+            pc_lcm = _lcm(pc_lcm, pc)
 
-    # If both degenerate (1), skip PERIOD family
+    # If both degenerate (1), no periodic pattern
     if pr_lcm == 1 and pc_lcm == 1:
         return None
 
     # Find kr, kc such that (R', C') = (kr·pr_lcm, kc·pc_lcm) for all trainings
-    kr_set: set[int] = set()
-    kc_set: set[int] = set()
+    kr = None
+    kc = None
 
     for _, (H, W), (R, C) in pairs:
+        # Check row multiple
         if pr_lcm > 1:
             if R % pr_lcm != 0:
-                return None  # R not a multiple
-            kr_set.add(R // pr_lcm)
+                return None  # R not a multiple of pr_lcm
+            k = R // pr_lcm
+            if kr is None:
+                kr = k
+            elif kr != k:
+                return None  # Inconsistent kr across trainings
         else:
-            kr_set.add(R)  # degenerate case
+            # No row period, use R directly
+            if kr is None:
+                kr = R
+            elif kr != R:
+                return None
 
+        # Check col multiple
         if pc_lcm > 1:
             if C % pc_lcm != 0:
-                return None  # C not a multiple
-            kc_set.add(C // pc_lcm)
+                return None  # C not a multiple of pc_lcm
+            k = C // pc_lcm
+            if kc is None:
+                kc = k
+            elif kc != k:
+                return None  # Inconsistent kc across trainings
         else:
-            kc_set.add(C)
+            # No col period, use C directly
+            if kc is None:
+                kc = C
+            elif kc != C:
+                return None
 
-    # All trainings must agree on kr and kc
-    if len(kr_set) != 1 or len(kc_set) != 1:
+    # Sanity check
+    if kr is None or kc is None:
         return None
 
-    kr = next(iter(kr_set))
-    kc = next(iter(kc_set))
-
     def S(H: int, W: int) -> tuple[int, int]:
-        return (kr * pr_lcm, kc * pc_lcm)
+        return (kr * max(1, pr_lcm), kc * max(1, pc_lcm))
 
-    # Verify
+    # Verify all pairs
     for _, (H, W), (R, C) in pairs:
         if S(H, W) != (R, C):
             return None
@@ -265,7 +286,7 @@ def _fit_period(
     extras = {
         "row_periods_lcm": pr_lcm,
         "col_periods_lcm": pc_lcm,
-        "axis_code": 0,  # rows (default; tie logic not yet implemented)
+        "axis_code": 0,  # rows (default; axis-tie rule deferred)
     }
 
     return S, params, extras
@@ -312,6 +333,52 @@ def _fit_count_rows(pairs: list[tuple[str, tuple[int, int], tuple[int, int]]]) -
     extras = {
         "qual_id": "q_rows",
         "qual_hash": _hash_ascii("q_rows"),
+    }
+
+    return S, params, extras
+
+
+def _fit_count_cols(pairs: list[tuple[str, tuple[int, int], tuple[int, int]]]) -> tuple[SFn, bytes, dict] | None:
+    """
+    Fit COUNT_BASED family with q_cols qualifier: q(H,W) = W.
+
+    Contract (WO-02 reconciled patch):
+    Registered qualifier: q_cols (symmetric to q_rows)
+    Semantics (frozen): R = α1·W + β1, C = α2·W + β2
+
+    This handles patterns where output depends on width only.
+
+    Returns:
+        (S_fn, params_bytes, extras) if exact fit, None otherwise
+    """
+    # Solve R = α1·W + β1
+    W_to_R = [(tid, W, R) for tid, (H, W), (R, C) in pairs]
+    a1b1 = _solve_linear_2var(W_to_R)
+    if a1b1 is None:
+        return None
+    a1, b1 = a1b1
+
+    # Solve C = α2·W + β2
+    W_to_C = [(tid, W, C) for tid, (H, W), (R, C) in pairs]
+    a2b2 = _solve_linear_2var(W_to_C)
+    if a2b2 is None:
+        return None
+    a2, b2 = a2b2
+
+    def S(H: int, W: int) -> tuple[int, int]:
+        return (a1 * W + b1, a2 * W + b2)
+
+    # Verify
+    for _, (H, W), (R, C) in pairs:
+        if S(H, W) != (R, C):
+            return None
+
+    # Serialize params: <4><α1><β1><α2><β2> (signed, may have negatives)
+    params = frame_params(a1, b1, a2, b2, signed=True)
+
+    extras = {
+        "qual_id": "q_cols",
+        "qual_hash": _hash_ascii("q_cols"),
     }
 
     return S, params, extras
@@ -403,24 +470,232 @@ def _fit_count_hw_bilinear(pairs: list[tuple[str, tuple[int, int], tuple[int, in
         return None
 
 
+def _fit_count_wh_bilinear(pairs: list[tuple[str, tuple[int, int], tuple[int, int]]]) -> tuple[SFn, bytes, dict] | None:
+    """
+    Fit COUNT_BASED family with registered q_wh_bilinear qualifier.
+
+    Contract (WO-02 patch):
+    Registered qualifier: q_wh_bilinear
+    Semantics (frozen): R = a1·W + b1·H + c1, C = a2·W + b2
+    Parameter serialization: <5><a1><b1><c1><a2><b2>
+
+    This handles patterns where R depends on both W and H (bilinear in R).
+
+    Activation rule: Only consider if equality proof exists for ALL trainings.
+
+    Returns:
+        (S_fn, params_bytes, extras) if exact fit, None otherwise
+    """
+    # Need at least 3 trainings for R (3 unknowns), 2 for C (2 unknowns)
+    if len(pairs) < 3:
+        return None
+
+    import numpy as np
+
+    # Collect data
+    Hs = np.array([H for _, (H, W), (R, C) in pairs], dtype=np.int64)
+    Ws = np.array([W for _, (H, W), (R, C) in pairs], dtype=np.int64)
+    Rs = np.array([R for _, (H, W), (R, C) in pairs], dtype=np.int64)
+    Cs = np.array([C for _, (H, W), (R, C) in pairs], dtype=np.int64)
+
+    try:
+        # Solve R = a1·W + b1·H + c1
+        A_R = np.stack([Ws, Hs, np.ones_like(Hs)], axis=1)
+        if np.linalg.matrix_rank(A_R) < 3:
+            return None  # Underdetermined or degenerate
+
+        sol_R = np.linalg.lstsq(A_R.astype(np.float64), Rs.astype(np.float64), rcond=None)[0]
+        a1, b1, c1 = sol_R
+
+        # Round to integers and verify exact
+        a1_int = int(round(float(a1)))
+        b1_int = int(round(float(b1)))
+        c1_int = int(round(float(c1)))
+
+        if not np.all(a1_int * Ws + b1_int * Hs + c1_int == Rs):
+            return None
+
+        # Solve C = a2·W + b2
+        A_C = np.stack([Ws, np.ones_like(Ws)], axis=1)
+        if np.linalg.matrix_rank(A_C) < 2:
+            return None
+
+        sol_C = np.linalg.lstsq(A_C.astype(np.float64), Cs.astype(np.float64), rcond=None)[0]
+        a2, b2 = sol_C
+
+        # Round to integers and verify exact
+        a2_int = int(round(float(a2)))
+        b2_int = int(round(float(b2)))
+
+        if not np.all(a2_int * Ws + b2_int == Cs):
+            return None
+
+        # Define shape function
+        def S(H: int, W: int) -> tuple[int, int]:
+            return (a1_int * W + b1_int * H + c1_int, a2_int * W + b2_int)
+
+        # Verify all pairs
+        for _, (H, W), (R, C) in pairs:
+            if S(H, W) != (R, C):
+                return None
+
+        # Serialize params: <5><a1><b1><c1><a2><b2>
+        params = frame_params(a1_int, b1_int, c1_int, a2_int, b2_int, signed=True)
+
+        extras = {
+            "qual_id": "q_wh_bilinear",
+            "qual_hash": _hash_ascii("q_wh_bilinear"),
+        }
+
+        return S, params, extras
+
+    except (np.linalg.LinAlgError, ValueError):
+        return None
+
+
+def _fit_count_components(
+    pairs: list[tuple[str, tuple[int, int], tuple[int, int]]],
+    presented_inputs: list[tuple[str, np.ndarray]] | None
+) -> tuple[SFn | None, bytes, dict, list[int]] | None:
+    """
+    Fit COUNT_BASED family with registered q_components qualifier.
+
+    Contract (WO-02 patch):
+    Registered qualifier: q_components
+    Semantics (frozen): R = a1·q + b1, C = a2·q + b2 where q = #components
+    Parameter serialization: <4><a1><b1><a2><b2>
+
+    Contract (00_math_spec.md §2):
+    "Count-based: ... where #qual is an exact content count (e.g., ... components)"
+
+    This uses WO-03 CC4 (4-connected components) to compute q.
+
+    Args:
+        pairs: [(train_id, (H,W), (R,C)), ...]
+        presented_inputs: [(train_id, G), ...] - required for component extraction
+
+    Returns:
+        (None, params_bytes, extras, qs) if exact fit (S_fn=None signals need for q at test time)
+        None if no fit
+
+    Note: S_fn is None because we can't evaluate S(H,W) without knowing q for test.
+          The runner must compute q(test) and apply (R,C) = (a1·q+b1, a2·q+b2) directly.
+    """
+    if presented_inputs is None:
+        return None  # Cannot compute q without grids
+
+    if len(pairs) < 2:
+        return None  # Need at least 2 trainings to solve 2-variable systems
+
+    # Import here to avoid circular dependency
+    from .components import cc4_by_color
+
+    import numpy as np
+
+    # Compute q for each training
+    qs = []
+    for (tid, (H, W), (R, C)), (tid2, G) in zip(pairs, presented_inputs):
+        if tid != tid2:
+            raise ValueError(f"Mismatched training IDs: {tid} != {tid2}")
+        _, rc = cc4_by_color(G)
+        q = len(rc.invariants)
+        qs.append(q)
+
+    qs_arr = np.array(qs, dtype=np.int64)
+    Rs = np.array([R for _, _, (R, C) in pairs], dtype=np.int64)
+    Cs = np.array([C for _, _, (_, C) in pairs], dtype=np.int64)
+
+    try:
+        # Solve R = a1·q + b1
+        A = np.stack([qs_arr, np.ones_like(qs_arr)], axis=1)
+        if np.linalg.matrix_rank(A) < 2:
+            return None
+
+        sol_R = np.linalg.lstsq(A.astype(np.float64), Rs.astype(np.float64), rcond=None)[0]
+        a1, b1 = sol_R
+
+        # Round to integers and verify exact
+        a1_int = int(round(float(a1)))
+        b1_int = int(round(float(b1)))
+
+        if not np.all(a1_int * qs_arr + b1_int == Rs):
+            return None
+
+        # Solve C = a2·q + b2
+        sol_C = np.linalg.lstsq(A.astype(np.float64), Cs.astype(np.float64), rcond=None)[0]
+        a2, b2 = sol_C
+
+        # Round to integers and verify exact
+        a2_int = int(round(float(a2)))
+        b2_int = int(round(float(b2)))
+
+        if not np.all(a2_int * qs_arr + b2_int == Cs):
+            return None
+
+        # Serialize params: <4><a1><b1><a2><b2>
+        params = frame_params(a1_int, b1_int, a2_int, b2_int, signed=True)
+
+        extras = {
+            "qual_id": "q_components",
+            "qual_hash": _hash_ascii("q_components"),
+            "coeffs": (a1_int, b1_int, a2_int, b2_int),  # Store for runner to apply
+        }
+
+        # Return None for S_fn (signals special handling), params, extras, and qs
+        return None, params, extras, qs.copy()
+
+    except (np.linalg.LinAlgError, ValueError):
+        return None
+
+
 def _fit_frame(pairs: list[tuple[str, tuple[int, int], tuple[int, int]]]) -> tuple[SFn, bytes, dict] | None:
     """
-    Fit FRAME family (stubbed).
+    Fit FRAME family: constant output size.
 
     Contract (00_math_spec.md §2):
     "BBox/frame and pad-to-multiple(k) if exactly implied"
 
+    Contract (WO-02 reconciled patch):
+    Implement constant output case: S(H,W) = (R₀, C₀) for all (H,W)
+
+    Note: This handles constant outputs only. Pad-to-multiple(k) deferred.
+
+    Args:
+        pairs: [(train_id, (H,W), (R,C)), ...]
+
     Returns:
-        None (not yet implemented)
+        (S_fn, params_bytes, extras) if all outputs same shape, None otherwise
     """
-    # TODO: implement when needed
-    return None
+    # Check if all outputs have same shape
+    output_shapes = {(R, C) for _, _, (R, C) in pairs}
+
+    if len(output_shapes) != 1:
+        return None  # Not constant
+
+    R0, C0 = next(iter(output_shapes))
+
+    # S function (constant)
+    def S(H: int, W: int) -> tuple[int, int]:
+        return (R0, C0)
+
+    # Serialize params: <2><R0><C0>
+    params = frame_params(R0, C0, signed=False)
+
+    extras = {
+        "frame": "const",
+        "R_const": R0,
+        "C_const": C0,
+    }
+
+    return S, params, extras
 
 
 def synthesize_shape(
     train_pairs: list[tuple[str, tuple[int, int], tuple[int, int]]],
-    presented_inputs: list[tuple[str, np.ndarray]] | None = None
-) -> tuple[SFn, ShapeRc]:
+    presented_inputs: list[tuple[str, np.ndarray]] | None = None,
+    *,
+    fail_fast: bool = False
+) -> tuple[SFn | None, ShapeRc]:
     """
     Synthesize shape function S from training examples.
 
@@ -430,49 +705,92 @@ def synthesize_shape(
     Contract (02_determinism_addendum.md §1.1):
     Ordering key: (branch_byte, params_bytes, R, C)
 
-    Contract (WO-02 patch):
-    Registered COUNT qualifiers: {"q_rows", "q_hw_bilinear"}
+    Contract (WO-02 reconciled patch):
+    - Library stays total: never raises by default (fail_fast=False)
+    - Returns (None, diagnostic_rc) for SHAPE_CONTRADICTION
+    - Harness enforces fail-fast at operational level
+
+    Registered COUNT qualifiers: {"q_rows", "q_cols", "q_hw_bilinear", "q_wh_bilinear", "q_components"}
     Only registered qualifiers may be used.
 
     Args:
         train_pairs: [(train_id, (H,W), (R',C')), ...]
-        presented_inputs: [(train_id, G), ...] - optional, for PERIOD
+        presented_inputs: [(train_id, G), ...] - optional, for PERIOD and q_components
+        fail_fast: if True, raise on SHAPE_CONTRADICTION (for special use cases)
 
     Returns:
         (S_fn, ShapeRc): shape function and receipt
+        Note: S_fn may be None for q_components or SHAPE_CONTRADICTION
 
     Raises:
-        ValueError: if no family fits all trainings exactly
+        ValueError: if unregistered COUNT qualifier used (contract violation)
+        ValueError: if fail_fast=True and SHAPE_CONTRADICTION (special case only)
     """
-    # Registered qualifiers (frozen)
-    REGISTERED_COUNT_QUALIFIERS = {"q_rows", "q_hw_bilinear"}
+    # Registered qualifiers (frozen per WO-02 reconciled patch)
+    REGISTERED_COUNT_QUALIFIERS = {"q_rows", "q_cols", "q_hw_bilinear", "q_wh_bilinear", "q_components"}
 
-    candidates: list[tuple[str, SFn, bytes, dict]] = []
+    candidates: list[tuple[str, SFn | None, bytes, dict]] = []
+
+    # Diagnostic tracking for failure receipts (enhanced: skip vs fail)
+    aff_reason = None
+    per_reason = None
+    count_reason = None
+    frame_reason = None
 
     # Try AFFINE
     aff = _fit_affine(train_pairs)
     if aff is not None:
         candidates.append(("A",) + aff)
+    else:
+        aff_reason = "no integer solution for all trainings"
 
     # Try PERIOD (requires grids)
-    period = _fit_period(train_pairs, presented_inputs)
-    if period is not None:
-        candidates.append(("P",) + period)
+    if presented_inputs is None:
+        per_reason = "skipped_no_presented_inputs"
+    else:
+        period = _fit_period(train_pairs, presented_inputs)
+        if period is not None:
+            candidates.append(("P",) + period)
+        else:
+            per_reason = "no_period_detected"
 
     # Try COUNT (q_rows - registered qualifier)
     count = _fit_count_rows(train_pairs)
     if count is not None:
         candidates.append(("C",) + count)
 
-    # Try COUNT (q_hw_bilinear - registered qualifier, patch-approved)
+    # Try COUNT (q_cols - registered qualifier)
+    count_cols = _fit_count_cols(train_pairs)
+    if count_cols is not None:
+        candidates.append(("C",) + count_cols)
+
+    # Try COUNT (q_hw_bilinear - registered qualifier)
     count_hw_bilinear = _fit_count_hw_bilinear(train_pairs)
     if count_hw_bilinear is not None:
         candidates.append(("C",) + count_hw_bilinear)
 
-    # Try FRAME (stubbed)
+    # Try COUNT (q_wh_bilinear - new registered qualifier)
+    count_wh_bilinear = _fit_count_wh_bilinear(train_pairs)
+    if count_wh_bilinear is not None:
+        candidates.append(("C",) + count_wh_bilinear)
+
+    # Try COUNT (q_components - new registered qualifier)
+    count_comp_result = _fit_count_components(train_pairs, presented_inputs)
+    if count_comp_result is not None:
+        # Special handling: S_fn is None, need to unpack differently
+        S_fn, params, extras, qs = count_comp_result
+        candidates.append(("C", S_fn, params, extras))
+
+    # Set count_reason if no COUNT qualifier succeeded
+    if not any(branch == "C" for branch, _, _, _ in candidates):
+        count_reason = "no registered qualifier fits"
+
+    # Try FRAME
     frame = _fit_frame(train_pairs)
     if frame is not None:
         candidates.append(("F",) + frame)
+    else:
+        frame_reason = "not_constant_output"
 
     # Validate COUNT qualifiers (fail-closed on unregistered qualifiers)
     for branch, _, _, extras in candidates:
@@ -486,13 +804,33 @@ def synthesize_shape(
 
     # Fail-closed: no family fits
     if not candidates:
-        raise ValueError(
-            "SHAPE_CONTRADICTION: no family (AFFINE, PERIOD, COUNT, FRAME) fits all trainings exactly"
+        # Return None for S_fn and diagnostic receipt
+        rc = ShapeRc(
+            branch_byte="",  # Empty signals contradiction
+            params_bytes_hex="",
+            R=-1,
+            C=-1,
+            verified_train_ids=[],
+            extras={
+                "status": "SHAPE_CONTRADICTION",
+                "attempts": [
+                    {"family": "AFFINE", "reason": aff_reason or "unknown"},
+                    {"family": "PERIOD", "reason": per_reason or "unknown"},
+                    {"family": "COUNT", "reason": count_reason or "unknown"},
+                    {"family": "FRAME", "reason": frame_reason or "unknown"},
+                ]
+            }
         )
+
+        # Optional fail-fast for special use cases (default: library stays total)
+        if fail_fast:
+            raise ValueError(f"SHAPE_CONTRADICTION: {rc.extras}")
+
+        return None, rc
 
     # Select by lex-min on (branch_byte, params_bytes)
     # Note: R, C will be filled by caller after applying to test
-    def key(c: tuple[str, SFn, bytes, dict]) -> tuple[str, bytes]:
+    def key(c: tuple[str, SFn | None, bytes, dict]) -> tuple[str, bytes]:
         branch, _, params, _ = c
         return (branch, params)
 

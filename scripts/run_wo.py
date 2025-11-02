@@ -151,7 +151,51 @@ def run_wo01(data_dir: str, subset_file: str) -> list[dict]:
     return all_receipts
 
 
-def run_wo02(data_dir: str, subset_file: str) -> list[dict]:
+def lint_wo02_receipts(receipts: list[dict]) -> list[str]:
+    """
+    Receipt linter for WO-02: surface actionable diagnostics.
+
+    Contract (WO-02 reconciled patch):
+    - Distinguish configuration bugs from coverage gaps
+    - Surface patterns for missing qualifiers
+    - Provide actionable next steps
+
+    Returns:
+        List of lint warnings (empty if all clean)
+    """
+    warnings = []
+
+    for receipt in receipts:
+        task_id = receipt.get("notes", {}).get("task_id", "unknown")
+        shape_notes = receipt.get("notes", {}).get("shape", {})
+        extras = shape_notes.get("extras", {})
+
+        # LINT 1: PERIOD skipped due to missing grids (configuration bug)
+        if extras.get("status") == "SHAPE_CONTRADICTION":
+            attempts = extras.get("attempts", [])
+            for attempt in attempts:
+                if attempt.get("family") == "PERIOD":
+                    reason = attempt.get("reason", "")
+                    if "skipped_no_presented_inputs" in reason:
+                        warnings.append(
+                            f"CONFIG_BUG: {task_id} - PERIOD skipped (no grids). "
+                            f"ALWAYS pass presented_inputs to synthesize_shape!"
+                        )
+
+        # LINT 2: COUNT failed with no registered qualifiers (potential gap)
+        if extras.get("status") == "SHAPE_CONTRADICTION":
+            attempts = extras.get("attempts", [])
+            for attempt in attempts:
+                if attempt.get("family") == "COUNT":
+                    reason = attempt.get("reason", "")
+                    if "no registered qualifier fits" in reason:
+                        # This is a coverage gap, not a bug - just note it
+                        pass  # Could add pattern analysis here
+
+    return warnings
+
+
+def run_wo02(data_dir: str, subset_file: str, continue_on_error: bool = False) -> list[dict]:
     """
     WO-02: Test Shape S synthesis on tasks.
 
@@ -162,12 +206,22 @@ def run_wo02(data_dir: str, subset_file: str) -> list[dict]:
     4. Verify E1: proof on ALL trainings (equality check)
     5. Collect receipts
 
-    Contract (docs/common_mistakes.md E1):
-    - Never change output shape without S proof
+    Contract (WO-02 reconciled patch):
+    - Library stays total (synthesize_shape never crashes by default)
+    - Harness enforces fail-fast (exits on SHAPE_CONTRADICTION unless --continue-on-error)
     - Receipt must include verified_train_ids (ALL trainings)
+
+    Args:
+        data_dir: Path to ARC task JSON files
+        subset_file: File containing task IDs (one per line)
+        continue_on_error: If False (default), fail-fast on SHAPE_CONTRADICTION
+                          If True, collect all failures and report at end
 
     Returns:
         List of receipts (one per task)
+
+    Raises:
+        SystemExit(1): If continue_on_error=False and any SHAPE_CONTRADICTION found
     """
     from arc.op.shape import synthesize_shape, apply_shape
     from arc.op.hash import hash_bytes
@@ -177,6 +231,7 @@ def run_wo02(data_dir: str, subset_file: str) -> list[dict]:
         task_ids = [line.strip() for line in f if line.strip()]
 
     all_receipts = []
+    failed_tasks = []  # Track SHAPE_CONTRADICTION failures
 
     for task_id in task_ids:
         # Load task
@@ -197,26 +252,85 @@ def run_wo02(data_dir: str, subset_file: str) -> list[dict]:
         # Synthesize shape
         S, shape_rc = synthesize_shape(train_pairs, presented_inputs)
 
-        # Apply to test input
-        test_input = np.array(task["test"][0]["input"], dtype=np.int64)
-        Ht, Wt = test_input.shape
-        Rt, Ct = apply_shape(S, Ht, Wt)
+        # Check for SHAPE_CONTRADICTION or special cases
+        if S is None and shape_rc.extras.get("status") == "SHAPE_CONTRADICTION":
+            # SHAPE_CONTRADICTION: no family fits
+            # R, C already set to -1 in shape.py
+            # Receipt already has diagnostics in extras["attempts"]
+            shape_rc.verified_train_ids = []  # No verification possible
 
-        # Fill receipt placeholders
-        shape_rc.R = Rt
-        shape_rc.C = Ct
-        shape_rc.verified_train_ids = [tid for tid, _, _ in train_pairs]
+            # Track failure
+            failed_tasks.append({
+                "task_id": task_id,
+                "attempts": shape_rc.extras.get("attempts", []),
+            })
 
-        # E1 VERIFICATION: Re-check all trainings (proof must hold)
-        for train_id, (H, W), (R_expected, C_expected) in train_pairs:
-            R_actual, C_actual = apply_shape(S, H, W)
-            if (R_actual, C_actual) != (R_expected, C_expected):
-                raise ValueError(
-                    f"Task {task_id}: E1 violation! Shape proof failed for {train_id}\n"
-                    f"  Expected: ({R_expected}, {C_expected})\n"
-                    f"  S({H},{W}): ({R_actual}, {C_actual})\n"
-                    f"  Branch: {shape_rc.branch_byte}, Params: {shape_rc.params_bytes_hex}"
-                )
+            # Fail-fast unless --continue-on-error
+            if not continue_on_error:
+                print(f"\n❌ SHAPE_CONTRADICTION: {task_id}")
+                print(f"   No family (AFFINE, PERIOD, COUNT, FRAME) fits all trainings.")
+                print(f"   Attempts:")
+                for attempt in shape_rc.extras.get("attempts", []):
+                    print(f"     - {attempt['family']}: {attempt['reason']}")
+                print(f"\n   Use --continue-on-error to collect all failures.\n")
+                exit(1)
+
+            # Skip E1 verification, continue to receipt generation
+
+        elif S is None and shape_rc.extras.get("qual_id") == "q_components":
+            # Special case: q_components requires computing q(test)
+            from arc.op.components import cc4_by_color
+
+            # Get coefficients from receipt
+            a1, b1, a2, b2 = shape_rc.extras["coeffs"]
+
+            # Apply to test: compute q(test)
+            test_input = np.array(task["test"][0]["input"], dtype=np.int64)
+            _, test_comp_rc = cc4_by_color(test_input)
+            q_test = len(test_comp_rc.invariants)
+
+            Rt = a1 * q_test + b1
+            Ct = a2 * q_test + b2
+
+            shape_rc.R = Rt
+            shape_rc.C = Ct
+            shape_rc.verified_train_ids = [tid for tid, _, _ in train_pairs]
+
+            # E1 VERIFICATION: Re-check all trainings (using q per training)
+            for (train_id, G), (_, _, (R_expected, C_expected)) in zip(presented_inputs, train_pairs):
+                _, train_comp_rc = cc4_by_color(G)
+                q_train = len(train_comp_rc.invariants)
+                R_actual = a1 * q_train + b1
+                C_actual = a2 * q_train + b2
+
+                if (R_actual, C_actual) != (R_expected, C_expected):
+                    raise ValueError(
+                        f"Task {task_id}: E1 violation! Shape proof failed for {train_id}\n"
+                        f"  Expected: ({R_expected}, {C_expected})\n"
+                        f"  S(q={q_train}): ({R_actual}, {C_actual})\n"
+                        f"  Branch: {shape_rc.branch_byte}, Params: {shape_rc.params_bytes_hex}"
+                    )
+
+        else:
+            # Normal case: S is callable
+            test_input = np.array(task["test"][0]["input"], dtype=np.int64)
+            Ht, Wt = test_input.shape
+            Rt, Ct = apply_shape(S, Ht, Wt)
+
+            shape_rc.R = Rt
+            shape_rc.C = Ct
+            shape_rc.verified_train_ids = [tid for tid, _, _ in train_pairs]
+
+            # E1 VERIFICATION: Re-check all trainings (proof must hold)
+            for train_id, (H, W), (R_expected, C_expected) in train_pairs:
+                R_actual, C_actual = apply_shape(S, H, W)
+                if (R_actual, C_actual) != (R_expected, C_expected):
+                    raise ValueError(
+                        f"Task {task_id}: E1 violation! Shape proof failed for {train_id}\n"
+                        f"  Expected: ({R_expected}, {C_expected})\n"
+                        f"  S({H},{W}): ({R_actual}, {C_actual})\n"
+                        f"  Branch: {shape_rc.branch_byte}, Params: {shape_rc.params_bytes_hex}"
+                    )
 
         # Build receipt for this task
         env = env_fingerprint()
@@ -247,6 +361,38 @@ def run_wo02(data_dir: str, subset_file: str) -> list[dict]:
         )
 
         all_receipts.append(aggregate(run_rc))
+
+    # Run receipt linter
+    lint_warnings = lint_wo02_receipts(all_receipts)
+
+    # Summary reporting
+    total = len(task_ids)
+    success = total - len(failed_tasks)
+    print(f"\n{'='*60}")
+    print(f"WO-02 Summary")
+    print(f"{'='*60}")
+    print(f"Total tasks:   {total}")
+    print(f"Success:       {success} ({100*success//total}%)")
+    print(f"Failed:        {len(failed_tasks)} ({100*len(failed_tasks)//total}%)")
+
+    # Display lint warnings
+    if lint_warnings:
+        print(f"\n⚠️  Receipt Linter Warnings ({len(lint_warnings)}):")
+        for warning in lint_warnings:
+            print(f"  {warning}")
+
+    if failed_tasks:
+        print(f"\n❌ SHAPE_CONTRADICTION failures:")
+        for fail in failed_tasks:
+            print(f"  - {fail['task_id']}")
+        print(f"\nFailed task IDs: {', '.join(f['task_id'] for f in failed_tasks)}")
+
+        # If --continue-on-error, still exit non-zero to signal failures
+        if continue_on_error:
+            print(f"\n⚠️  Exiting with code 1 (failures recorded)")
+            exit(1)
+    else:
+        print(f"\n✅ All tasks succeeded!")
 
     return all_receipts
 
@@ -506,6 +652,11 @@ def main():
     ap.add_argument("--subset", default="data/ids.txt", help="Task IDs file")
     ap.add_argument("--out", default="out/", help="Output directory")
     ap.add_argument("--receipts", default="out/receipts/", help="Receipts directory")
+    ap.add_argument(
+        "--continue-on-error",
+        action="store_true",
+        help="Continue processing on SHAPE_CONTRADICTION (default: fail-fast)",
+    )
     args = ap.parse_args()
 
     os.makedirs(args.receipts, exist_ok=True)
@@ -540,9 +691,9 @@ def main():
 
     elif args.wo == "WO-02":
         print(f"Running {args.wo} on tasks (run 1/2)...")
-        r1_list = run_wo02(args.data, args.subset)
+        r1_list = run_wo02(args.data, args.subset, args.continue_on_error)
         print(f"Running {args.wo} on tasks (run 2/2)...")
-        r2_list = run_wo02(args.data, args.subset)
+        r2_list = run_wo02(args.data, args.subset, args.continue_on_error)
 
         # Determinism check: compare lists
         if r1_list != r2_list:

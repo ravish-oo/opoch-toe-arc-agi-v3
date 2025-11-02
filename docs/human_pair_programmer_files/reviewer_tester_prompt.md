@@ -32,3 +32,16 @@ Read only anchors:
 # for avoiding MD files
 pls proceed. for review. u can avoid writing a review file unless something u want to raise then write in reviews/ else if things are fine then just show me a
   summary on terminal itself and avoid time wasting in writing files. same applies to tests as well.. something breaks then we need reports.. not for sake of it 
+
+# sweep instructions
+
+so we want to battle test our implementation till WO-04. i was talking to my gpt and they gave me this
+[instructions]
+
+  but larger point being we run 50 tests to see:
+1. are our receipts sacrosanct and do they capture all 
+2. if everything is thr all test shud pass till WO-04 and recepts shud so it
+3. if not then we shall see how many tests are stuck and receipts shud show how and whr...
+
+so can u execute this? again whatever bug or gap u find, u report and not change our code.. so let's run  a sweep on 50 tasks and let's see what we get..
+hv u understood what needs to be done? pls assess and confirm and then we can proceed 
