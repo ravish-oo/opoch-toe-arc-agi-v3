@@ -71,7 +71,7 @@
   **Red-team tests:** underdetermined microcase with two admissible φ; tie-table present; chosen_idx matches fixed L.
   **Gotchas:** φ is *partial*; never infer by majority; σ encoding = Lehmer.
 
-## WO-05 — Truth compiler (gfp) with frozen tags (BLOCKER)
+## WO-05 — Truth compiler (gfp) with frozen tags (BLOCKER) ✅ COMPLETED
 
 **Goal:** coarsest bisimulation on fixed tag alphabet.
 **Delivers:**

@@ -244,21 +244,39 @@ def run_wo02(data_dir: str, subset_file: str, continue_on_error: bool = False) -
         task_path = os.path.join(data_dir, f"{task_id}.json")
         task = load_task(task_path)
 
-        # Build train_pairs: [(train_id, (H,W), (R',C'))]
+        # FIX: Apply Π before synthesizing Shape S (coordinate frame consistency)
+        from arc.op.pi import present_all
+
+        # Load RAW inputs
+        train_inputs_raw = [np.array(pair["input"], dtype=np.int64) for pair in task["train"]]
+        test_input_raw = np.array(task["test"][0]["input"], dtype=np.int64)
+
+        # Apply Π to get PRESENTED (canonical) frame
+        train_presented, test_presented, transform, pi_rc = present_all(
+            train_inputs_raw, test_input_raw
+        )
+
+        # Build train_pairs: [(train_id, (H_presented, W_presented), (R_raw, C_raw))]
+        # Inputs: PRESENTED (after Π), Outputs: RAW (per spec)
         train_pairs = []
         presented_inputs = []
 
         for i, pair in enumerate(task["train"]):
             train_id = f"{task_id}_train{i}"
-            X = np.array(pair["input"], dtype=np.int64)
-            Y = np.array(pair["output"], dtype=np.int64)
-            train_pairs.append((train_id, X.shape, Y.shape))
-            presented_inputs.append((train_id, X))
+            X_presented = train_presented[i]
+            Y_raw = np.array(pair["output"], dtype=np.int64)
+            train_pairs.append((train_id, X_presented.shape, Y_raw.shape))
+            presented_inputs.append((train_id, X_presented))
 
-        # Synthesize shape
-        S, shape_rc = synthesize_shape(train_pairs, presented_inputs)
+        # Synthesize Shape S using PRESENTED input dimensions
+        # Pass test_presented shape for validation
+        S, shape_rc = synthesize_shape(train_pairs, presented_inputs, test_shape=test_presented.shape)
 
-        # Check for SHAPE_CONTRADICTION or special cases
+        # Record coordinate frame in receipt (for WO-05 consistency check)
+        if "frame" not in shape_rc.extras:
+            shape_rc.extras["frame"] = "presented"
+
+        # Check for SHAPE_CONTRADICTION, INVALID_DIMENSIONS, or special cases
         if S is None and shape_rc.extras.get("status") == "SHAPE_CONTRADICTION":
             # SHAPE_CONTRADICTION: no family fits
             # R, C already set to -1 in shape.py
@@ -283,6 +301,26 @@ def run_wo02(data_dir: str, subset_file: str, continue_on_error: bool = False) -
 
             # Skip E1 verification, continue to receipt generation
 
+        elif S is None and shape_rc.extras.get("status") == "INVALID_DIMENSIONS":
+            # INVALID_DIMENSIONS: Shape S returns R<=0 or C<=0 for test input
+            shape_rc.verified_train_ids = []  # No verification possible
+
+            # Track failure
+            failed_tasks.append({
+                "task_id": task_id,
+                "reason": shape_rc.extras.get("reason", "unknown"),
+            })
+
+            # Fail-fast unless --continue-on-error
+            if not continue_on_error:
+                print(f"\n❌ INVALID_DIMENSIONS: {task_id}")
+                print(f"   {shape_rc.extras.get('reason', 'unknown')}")
+                print(f"   Branch attempted: {shape_rc.extras.get('branch_attempted', 'unknown')}")
+                print(f"\n   Use --continue-on-error to collect all failures.\n")
+                exit(1)
+
+            # Skip E1 verification, continue to receipt generation
+
         elif S is None and shape_rc.extras.get("qual_id") == "q_components":
             # Special case: q_components requires computing q(test)
             from arc.op.components import cc4_by_color
@@ -290,9 +328,8 @@ def run_wo02(data_dir: str, subset_file: str, continue_on_error: bool = False) -
             # Get coefficients from receipt
             a1, b1, a2, b2 = shape_rc.extras["coeffs"]
 
-            # Apply to test: compute q(test)
-            test_input = np.array(task["test"][0]["input"], dtype=np.int64)
-            _, test_comp_rc = cc4_by_color(test_input)
+            # Apply to test: compute q(test) using PRESENTED input
+            _, test_comp_rc = cc4_by_color(test_presented)
             q_test = len(test_comp_rc.invariants)
 
             Rt = a1 * q_test + b1
@@ -319,8 +356,8 @@ def run_wo02(data_dir: str, subset_file: str, continue_on_error: bool = False) -
 
         else:
             # Normal case: S is callable
-            test_input = np.array(task["test"][0]["input"], dtype=np.int64)
-            Ht, Wt = test_input.shape
+            # Apply S to PRESENTED test dimensions (not RAW)
+            Ht, Wt = test_presented.shape
             Rt, Ct = apply_shape(S, Ht, Wt)
 
             shape_rc.R = Rt
@@ -644,6 +681,256 @@ def run_wo04(data_dir: str, subset_file: str) -> list[dict]:
     return all_receipts
 
 
+def _load_wo02_receipt(receipts_dir: str, task_id: str) -> dict | None:
+    """
+    Load WO-02 receipt for given task_id.
+
+    Args:
+        receipts_dir: Path to receipts directory
+        task_id: Task identifier
+
+    Returns:
+        Shape receipt dict or None if not found
+    """
+    import json
+
+    wo02_path = os.path.join(receipts_dir, "WO-02_run.jsonl")
+    if not os.path.exists(wo02_path):
+        return None
+
+    with open(wo02_path) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            receipt = json.loads(line)
+            if receipt.get("notes", {}).get("task_id") == task_id:
+                return receipt.get("notes", {}).get("shape")
+
+    return None
+
+
+def run_wo05(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts") -> list[dict]:
+    """
+    WO-05: Test Truth compiler (Paige-Tarjan gfp).
+
+    For each task:
+    1. Load WO-02 receipt (Shape S)
+    2. Load test input in Π frame
+    3. Apply Shape S to get test output dimensions
+    4. Run compute_truth_partition twice
+    5. Verify receipts identical (determinism)
+    6. Verify T1: Frozen tag vocabulary hash matches
+    7. Verify T2: Partition hash identical across runs
+    8. Collect receipts
+
+    Contract (00_math_spec.md §4):
+    - Engineering = Math: gfp(ℱ) via Paige-Tarjan
+    - Debugging = Algebra: Partition refinement is exact set intersection
+    - Determinism: Frozen tags, canonical encodings, exact algorithms
+
+    Contract (WO-05 fix): Reuse WO-02 Shape S instead of re-synthesizing
+
+    Args:
+        data_dir: Path to ARC task JSON files
+        subset_file: File containing task IDs
+        receipts_dir: Path to receipts directory (default: out/receipts)
+
+    Returns:
+        List of receipts (one per task)
+    """
+    from arc.op.pi import present_all
+    from arc.op.shape import deserialize_shape, apply_shape
+    from arc.op.truth import compute_truth_partition, TAG_SET_VERSION
+    from dataclasses import asdict
+
+    # Load task IDs
+    with open(subset_file) as f:
+        task_ids = [line.strip() for line in f if line.strip()]
+
+    all_receipts = []
+
+    for task_id in task_ids:
+        # Load task
+        task_path = os.path.join(data_dir, f"{task_id}.json")
+        task = load_task(task_path)
+
+        # FIX: Load WO-02 receipt (don't re-synthesize Shape S)
+        shape_receipt = _load_wo02_receipt(receipts_dir, task_id)
+
+        if shape_receipt is None:
+            print(f"⚠️  Skipping {task_id}: WO-02 receipt not found")
+            continue
+
+        # Check for SHAPE_CONTRADICTION or INVALID_DIMENSIONS
+        if shape_receipt.get("branch_byte") == "":
+            print(f"⚠️  Skipping {task_id}: SHAPE_CONTRADICTION (from WO-02)")
+            continue
+
+        # FIX: Assert frame consistency
+        frame = shape_receipt.get("extras", {}).get("frame")
+        if frame != "presented":
+            raise ValueError(
+                f"Task {task_id}: Frame consistency violation!\n"
+                f"  Expected frame='presented' (WO-02 must use Π)\n"
+                f"  Got: {frame}"
+            )
+
+        # Step 1: Get test input in Π frame
+        train_inputs = [np.array(pair["input"], dtype=np.int64) for pair in task["train"]]
+        test_input = np.array(task["test"][0]["input"], dtype=np.int64)
+
+        # Run Π to get test in canonical frame
+        train_presented, test_presented, transform, pi_rc = present_all(
+            train_inputs, test_input
+        )
+
+        # Step 2: Deserialize Shape S from WO-02 receipt
+        branch_byte = shape_receipt["branch_byte"]
+        params_hex = shape_receipt["params_hex"]
+        extras = shape_receipt.get("extras", {})
+
+        # Handle q_components special case
+        qual_id = extras.get("qual_id")
+        if qual_id == "q_components":
+            # Special case: compute q from test_presented grid
+            from arc.op.components import cc4_by_color
+
+            a1, b1, a2, b2 = extras["coeffs"]
+            _, test_comp_rc = cc4_by_color(test_presented)
+            q_test = len(test_comp_rc.invariants)
+
+            R = a1 * q_test + b1
+            C = a2 * q_test + b2
+
+        else:
+            # Standard case: deserialize S and apply
+            S = deserialize_shape(branch_byte, params_hex, extras)
+            R, C = apply_shape(S, *test_presented.shape)
+
+        # FIX: Guard against R<=0 or C<=0
+        if R <= 0 or C <= 0:
+            print(f"⚠️  Skipping {task_id}: INVALID_DIMENSIONS (R={R}, C={C} from WO-02)")
+            continue
+
+        # Create output grid in Π frame (placeholder with zeros)
+        # Truth only uses test output dimensions, not actual content
+        X_star = np.zeros((R, C), dtype=np.int64)
+
+        # Step 3: Compute Truth partition twice
+        result1 = compute_truth_partition(X_star)
+        result2 = compute_truth_partition(X_star)
+
+        # Handle None case (should never happen - totality contract)
+        if result1 is None or result2 is None:
+            raise ValueError(
+                f"Task {task_id}: BLOCKER! compute_truth_partition returned None (totality violation)"
+            )
+
+        # T1 VERIFICATION: Tag set version must match frozen constant
+        if result1.receipt.tag_set_version != TAG_SET_VERSION:
+            raise ValueError(
+                f"Task {task_id}: T1 violation! Tag set version mismatch.\n"
+                f"  Expected: {TAG_SET_VERSION}\n"
+                f"  Got: {result1.receipt.tag_set_version}"
+            )
+
+        # T2 VERIFICATION: Partition hash must be identical across runs
+        if result1.receipt.partition_hash != result2.receipt.partition_hash:
+            raise ValueError(
+                f"Task {task_id}: T2 violation! Partition hash differs across runs (NONDETERMINISTIC).\n"
+                f"  Run 1: {result1.receipt.partition_hash}\n"
+                f"  Run 2: {result2.receipt.partition_hash}"
+            )
+
+        # Verify full receipt equality
+        if asdict(result1.receipt) != asdict(result2.receipt):
+            raise ValueError(
+                f"Task {task_id}: T2 violation! Full receipts differ (NONDETERMINISTIC).\n"
+                f"  Run 1: {asdict(result1.receipt)}\n"
+                f"  Run 2: {asdict(result2.receipt)}"
+            )
+
+        # Additional verifications for new receipt structure
+        # Verify B7: identity_excluded must be True
+        if not result1.receipt.overlaps.identity_excluded:
+            raise ValueError(
+                f"Task {task_id}: B7 violation! identity_excluded must be True.\n"
+                f"  Got: {result1.receipt.overlaps.identity_excluded}"
+            )
+
+        # Verify B3: candidates and accepted must be present
+        if not hasattr(result1.receipt.overlaps, 'candidates'):
+            raise ValueError(
+                f"Task {task_id}: B3 violation! OverlapRc missing 'candidates' field"
+            )
+        if not hasattr(result1.receipt.overlaps, 'accepted'):
+            raise ValueError(
+                f"Task {task_id}: B3 violation! OverlapRc missing 'accepted' field"
+            )
+
+        # Verify B4: block_hist must be present (not num_clusters)
+        if not hasattr(result1.receipt, 'block_hist'):
+            raise ValueError(
+                f"Task {task_id}: B4 violation! TruthRc missing 'block_hist' field"
+            )
+
+        # Verify B5: row_clusters and col_clusters must be present
+        if not hasattr(result1.receipt, 'row_clusters'):
+            raise ValueError(
+                f"Task {task_id}: B5 violation! TruthRc missing 'row_clusters' field"
+            )
+        if not hasattr(result1.receipt, 'col_clusters'):
+            raise ValueError(
+                f"Task {task_id}: B5 violation! TruthRc missing 'col_clusters' field"
+            )
+
+        # Build receipt for this task
+        env = env_fingerprint()
+
+        # Compute num_clusters from block_hist
+        num_clusters = len(result1.receipt.block_hist)
+
+        # Hash truth receipt
+        truth_hash = hash_bytes(
+            f"{result1.receipt.partition_hash}:{num_clusters}".encode("utf-8")
+        )[:16]
+
+        stage_hashes = {
+            "wo": "WO-05",
+            "truth.partition_hash": result1.receipt.partition_hash,
+            "truth.tag_set_version": result1.receipt.tag_set_version,
+        }
+
+        run_rc = RunRc(
+            env=env,
+            stage_hashes=stage_hashes,
+            notes={
+                "task_id": task_id,
+                "truth": {
+                    "tag_set_version": result1.receipt.tag_set_version,
+                    "partition_hash": result1.receipt.partition_hash,
+                    "num_clusters": num_clusters,
+                    "block_hist": result1.receipt.block_hist,
+                    "row_clusters": result1.receipt.row_clusters,
+                    "col_clusters": result1.receipt.col_clusters,
+                    "refinement_steps": result1.receipt.refinement_steps,
+                    "overlaps": {
+                        "method": result1.receipt.overlaps.method,
+                        "num_candidates": len(result1.receipt.overlaps.candidates),
+                        "num_accepted": len(result1.receipt.overlaps.accepted),
+                        "identity_excluded": result1.receipt.overlaps.identity_excluded,
+                        "candidates_sample": result1.receipt.overlaps.candidates[:5],  # first 5
+                        "accepted_sample": result1.receipt.overlaps.accepted[:5],      # first 5
+                    },
+                },
+            },
+        )
+
+        all_receipts.append(aggregate(run_rc))
+
+    return all_receipts
+
+
 def main():
     """
     Run WO determinism harness.
@@ -740,6 +1027,26 @@ def main():
         r1_list = run_wo04(args.data, args.subset)
         print(f"Running {args.wo} on tasks (run 2/2)...")
         r2_list = run_wo04(args.data, args.subset)
+
+        # Determinism check: compare lists
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Task {i}: receipts differ")
+                    if a.get("stage_hashes") != b.get("stage_hashes"):
+                        print(f"    Run 1 hashes: {a.get('stage_hashes')}")
+                        print(f"    Run 2 hashes: {b.get('stage_hashes')}")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
+
+    elif args.wo == "WO-05":
+        print(f"Running {args.wo} on tasks (run 1/2)...")
+        r1_list = run_wo05(args.data, args.subset, args.receipts)
+        print(f"Running {args.wo} on tasks (run 2/2)...")
+        r2_list = run_wo05(args.data, args.subset, args.receipts)
 
         # Determinism check: compare lists
         if r1_list != r2_list:

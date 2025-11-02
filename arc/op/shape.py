@@ -870,7 +870,8 @@ def synthesize_shape(
     train_pairs: list[tuple[str, tuple[int, int], tuple[int, int]]],
     presented_inputs: list[tuple[str, np.ndarray]] | None = None,
     *,
-    fail_fast: bool = False
+    fail_fast: bool = False,
+    test_shape: tuple[int, int] | None = None
 ) -> tuple[SFn | None, ShapeRc]:
     """
     Synthesize shape function S from training examples.
@@ -1020,6 +1021,32 @@ def synthesize_shape(
 
     branch, S, params_bytes, extras = min(candidates, key=key)
 
+    # FIX: Validate test dimensions (fail-closed on R<=0 or C<=0)
+    if test_shape is not None and S is not None:
+        test_H, test_W = test_shape
+        R_test, C_test = apply_shape(S, test_H, test_W)
+
+        if R_test <= 0 or C_test <= 0:
+            # Reject this Shape S (INVALID_DIMENSIONS)
+            rc = ShapeRc(
+                branch_byte="",
+                params_bytes_hex="",
+                R=-1,
+                C=-1,
+                verified_train_ids=[],
+                extras={
+                    "status": "INVALID_DIMENSIONS",
+                    "reason": f"Shape S returns ({R_test}, {C_test}) for test input {test_shape}",
+                    "branch_attempted": branch,
+                    "params_hex_attempted": params_bytes.hex(),
+                }
+            )
+
+            if fail_fast:
+                raise ValueError(f"INVALID_DIMENSIONS: {rc.extras}")
+
+            return None, rc
+
     # Create receipt (R, C, verified_train_ids will be filled by caller)
     rc = ShapeRc(
         branch_byte=branch,
@@ -1031,6 +1058,151 @@ def synthesize_shape(
     )
 
     return S, rc
+
+
+def deserialize_shape(branch_byte: str, params_hex: str, extras: dict) -> SFn:
+    """
+    Deserialize Shape S from frozen params and branch type.
+
+    Contract (WO-05 fix): Reuse WO-02 Shape S instead of re-synthesizing.
+
+    Args:
+        branch_byte: 'A', 'P', 'C', 'F'
+        params_hex: hex-encoded parameter bytes
+        extras: metadata dict (pr_lcm/pc_lcm for P, qual_id/coeffs for C, etc.)
+
+    Returns:
+        S: shape function callable S(H, W) -> (R, C)
+
+    Raises:
+        ValueError: if branch_byte unknown or params invalid
+    """
+    from .bytes import unframe_params
+
+    # Decode params from hex
+    params_bytes = bytes.fromhex(params_hex)
+
+    if branch_byte == "A":
+        # AFFINE: either standard <4><a><b><c><d> or rational <6><d1><a><b><d2><c><e>
+        params = unframe_params(params_bytes, signed=True)
+
+        if len(params) == 4:
+            # Standard AFFINE: R = aH + b, C = cW + d
+            a, b, c, d = params
+
+            def S(H: int, W: int) -> tuple[int, int]:
+                return (a * H + b, c * W + d)
+
+        elif len(params) == 6:
+            # Rational AFFINE: R = floor((a·H+b)/d1), C = floor((c·W+e)/d2)
+            d1, a, b, d2, c, e = params
+
+            def S(H: int, W: int) -> tuple[int, int]:
+                R = (a * H + b) // d1
+                C = (c * W + e) // d2
+                return (R, C)
+
+        else:
+            raise ValueError(f"AFFINE branch expects 4 or 6 params, got {len(params)}")
+
+        return S
+
+    elif branch_byte == "P":
+        # PERIOD: <2><kr><kc> + extras {row_periods_lcm, col_periods_lcm}
+        params = unframe_params(params_bytes, signed=False)
+        if len(params) != 2:
+            raise ValueError(f"PERIOD branch expects 2 params, got {len(params)}")
+
+        kr, kc = params
+        pr_lcm = extras.get("row_periods_lcm", 1)
+        pc_lcm = extras.get("col_periods_lcm", 1)
+
+        def S(H: int, W: int) -> tuple[int, int]:
+            return (kr * max(1, pr_lcm), kc * max(1, pc_lcm))
+
+        return S
+
+    elif branch_byte == "C":
+        # COUNT: <4><a1><b1><a2><b2> + extras {coeffs, qual_id}
+        # For q_components: need to recompute q per input (special handling in caller)
+        # For other qualifiers (q_rows, q_hw_bilinear, etc): coefficients are in extras
+        qual_id = extras.get("qual_id")
+
+        if qual_id == "q_components":
+            # Special case: q_components requires computing q(H,W) from actual grid
+            # Return None to signal caller must handle specially
+            # Caller will use coeffs from extras and compute q from grid
+            raise ValueError(
+                "q_components cannot be deserialized without grid context. "
+                "Caller must handle q_components specially using extras['coeffs']."
+            )
+
+        # For other qualifiers, coeffs are in extras
+        coeffs = extras.get("coeffs")
+        if coeffs is None:
+            # Fallback: try to decode from params_bytes
+            params = unframe_params(params_bytes, signed=True)
+            if len(params) == 4:
+                coeffs = tuple(params)
+            elif len(params) == 5:
+                coeffs = tuple(params)
+            else:
+                raise ValueError(f"COUNT branch expects 4 or 5 params, got {len(params)}")
+
+        if len(coeffs) == 4:
+            a1, b1, a2, b2 = coeffs
+
+            if qual_id == "q_rows":
+                # R = a1·H + b1, C = a2·H + b2
+                def S(H: int, W: int) -> tuple[int, int]:
+                    return (a1 * H + b1, a2 * H + b2)
+
+            elif qual_id == "q_cols":
+                # R = a1·W + b1, C = a2·W + b2
+                def S(H: int, W: int) -> tuple[int, int]:
+                    return (a1 * W + b1, a2 * W + b2)
+
+            else:
+                raise ValueError(f"Unknown COUNT qualifier with 4 coeffs: {qual_id}")
+
+        elif len(coeffs) == 5:
+            if qual_id == "q_hw_bilinear":
+                # R = a1·H + b1, C = c2·W + d2·H + e2
+                a1, b1, c2, d2, e2 = coeffs
+
+                def S(H: int, W: int) -> tuple[int, int]:
+                    return (a1 * H + b1, c2 * W + d2 * H + e2)
+
+            elif qual_id == "q_wh_bilinear":
+                # R = a1·W + b1·H + c1, C = a2·W + b2
+                a1, b1, c1, a2, b2 = coeffs
+
+                def S(H: int, W: int) -> tuple[int, int]:
+                    return (a1 * W + b1 * H + c1, a2 * W + b2)
+
+            else:
+                raise ValueError(f"Unknown COUNT qualifier with 5 coeffs: {qual_id}")
+
+        else:
+            raise ValueError(f"COUNT coeffs must have 4 or 5 elements, got {len(coeffs)}")
+
+        return S
+
+    elif branch_byte == "F":
+        # FRAME: <2><R0><C0> (constant output)
+        params = unframe_params(params_bytes, signed=False)
+        if len(params) != 2:
+            raise ValueError(f"FRAME branch expects 2 params, got {len(params)}")
+
+        R0, C0 = params
+
+        def S(H: int, W: int) -> tuple[int, int]:
+            return (R0, C0)
+
+        return S
+
+    else:
+        raise ValueError(f"Unknown branch_byte: {branch_byte}")
 
 
 def apply_shape(S: SFn, H: int, W: int) -> tuple[int, int]:

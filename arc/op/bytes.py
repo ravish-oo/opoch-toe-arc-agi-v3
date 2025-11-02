@@ -122,6 +122,81 @@ def frame_params(*ints: int, signed: bool = False) -> bytes:
     return bytes(out)
 
 
+def _unzigzag(n: int) -> int:
+    """
+    ZigZag decoding: map unsigned int back to signed.
+
+    Inverse of _zigzag:
+      0 → 0, 1 → -1, 2 → 1, 3 → -2, 4 → 2, ...
+    """
+    return (n >> 1) ^ (-(n & 1))
+
+
+def unvaru(b: bytes) -> tuple[int, bytes]:
+    """
+    Decode LEB128 varint from bytes.
+
+    Args:
+        b: bytes starting with LEB128 varint
+
+    Returns:
+        (value, remaining_bytes): decoded value and unconsumed bytes
+    """
+    result = 0
+    shift = 0
+    i = 0
+
+    while i < len(b):
+        byte = b[i]
+        i += 1
+        result |= (byte & 0x7F) << shift
+        if not (byte & 0x80):
+            return result, b[i:]
+        shift += 7
+
+    raise ValueError("Incomplete LEB128 varint")
+
+
+def zigzag_decode(b: bytes) -> tuple[int, bytes]:
+    """
+    Decode ZigZag LEB128 varint to signed integer.
+
+    Args:
+        b: bytes starting with ZigZag-encoded varint
+
+    Returns:
+        (value, remaining_bytes): decoded signed value and unconsumed bytes
+    """
+    n, remaining = unvaru(b)
+    return _unzigzag(n), remaining
+
+
+def unframe_params(b: bytes, signed: bool = False) -> list[int]:
+    """
+    Unframe parameter list from <count><p1>...<pk>.
+
+    Inverse of frame_params.
+
+    Args:
+        b: framed parameter bytes
+        signed: if True, use ZigZag decoding; else plain LEB128
+
+    Returns:
+        list[int]: decoded parameters
+    """
+    count, remaining = unvaru(b)
+    params = []
+
+    for _ in range(count):
+        if signed:
+            val, remaining = zigzag_decode(remaining)
+        else:
+            val, remaining = unvaru(remaining)
+        params.append(val)
+
+    return params
+
+
 def from_bytes_grid(b: bytes, shape: tuple[int, int]) -> np.ndarray:
     """
     Decode uint32_le row-major bytes to H×W grid.
