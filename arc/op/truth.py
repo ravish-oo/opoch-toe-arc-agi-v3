@@ -89,7 +89,7 @@ class OverlapRc:
 @dataclass(frozen=True)
 class TruthRc:
     """
-    Receipt for Truth partition computation (B4/B5 fix).
+    Receipt for Truth partition computation (B4/B5 fix + WO-05D).
 
     Fields:
     - tag_set_version: Frozen tag vocabulary hash
@@ -100,6 +100,7 @@ class TruthRc:
     - col_clusters: Band boundary indices (B5 fix)
     - refinement_steps: Number of Paige-Tarjan iterations
     - method: Always "paige_tarjan"
+    - seed: Initial partition method (WO-05D: always "color")
     """
     tag_set_version: str
     partition_hash: str
@@ -109,6 +110,7 @@ class TruthRc:
     col_clusters: List[int]
     refinement_steps: int
     method: Literal["paige_tarjan"]
+    seed: Literal["color"]  # WO-05D: explicit marker for initial partition
 
 
 @dataclass(frozen=True)
@@ -251,6 +253,9 @@ def _extract_samecomp_r2_tags(X: np.ndarray) -> np.ndarray:
     """
     Extract same-component within radius 2 signature.
     Flood-fill from each pixel, collect component within L∞ distance 2.
+
+    WO-05D FIX: Encode relative offsets from center pixel, not absolute coordinates.
+    This makes the tag a frozen property of the local pattern, not pixel position.
     """
     H, W = X.shape
     tags = np.zeros((H, W), dtype=np.int64)
@@ -275,7 +280,8 @@ def _extract_samecomp_r2_tags(X: np.ndarray) -> np.ndarray:
 
                 # Only include if within L∞ distance 2
                 if abs(r - r0) <= 2 and abs(c - c0) <= 2:
-                    component.append((r, c))
+                    # WO-05D: Store RELATIVE offset from center pixel, not absolute coords
+                    component.append((r - r0, c - c0))
 
                 # N4 flood fill
                 for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
@@ -651,20 +657,12 @@ def _refine_once(
     signatures = {}
     for r in range(H):
         for c in range(W):
-            # Collect neighbor cluster IDs (N8)
-            neighbor_clusters = []
-            for dr in [-1, 0, 1]:
-                for dc in [-1, 0, 1]:
-                    if dr == 0 and dc == 0:
-                        continue
-                    nr, nc = r + dr, c + dc
-                    if 0 <= nr < H and 0 <= nc < W:
-                        neighbor_clusters.append(int(labels[nr, nc]))
+            # WO-05D: Use ONLY frozen tags (no neighbor cluster IDs)
+            # Including neighbor_sig (current cluster IDs) causes cascading splits
+            # because it creates feedback loop in Paige-Tarjan refinement.
+            # Neighbor relationships are already captured in n4_tags/n8_tags.
 
-            neighbor_clusters.sort()
-            neighbor_sig = tuple(neighbor_clusters)
-
-            # Full signature (all 14 tags + neighbors)
+            # Full signature (all 14 frozen tags)
             sig = (
                 int(color_tags[r, c]),
                 int(n4_tags[r, c]),
@@ -680,7 +678,7 @@ def _refine_once(
                 int(exact_tile_tags[r, c]),
                 int(bbox_mirror_tags[r, c]),
                 int(bbox_rotate_tags[r, c]),
-                neighbor_sig
+                # neighbor_sig REMOVED - caused per-pixel partition explosion
             )
 
             # Group by (current_cluster, signature)
@@ -917,7 +915,7 @@ def compute_truth_partition(
     # Step 7: Compute partition hash
     partition_hash_val = _partition_hash(labels)
 
-    # Build receipt with all fixes
+    # Build receipt with all fixes (WO-05D: include seed marker)
     receipt = TruthRc(
         tag_set_version=TAG_SET_VERSION,
         partition_hash=partition_hash_val,
@@ -926,7 +924,8 @@ def compute_truth_partition(
         row_clusters=row_clusters,
         col_clusters=col_clusters,
         refinement_steps=refinement_steps,
-        method="paige_tarjan"
+        method="paige_tarjan",
+        seed="color"  # WO-05D: explicit marker
     )
 
     return TruthPartition(labels=labels, receipt=receipt)

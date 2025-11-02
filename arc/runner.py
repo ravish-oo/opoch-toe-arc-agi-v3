@@ -1258,14 +1258,29 @@ def solve_task(
 
         if phi_law is None:
             # Summary witness: identity φ, apply σ globally
-            for r in range(R_star):
-                for c in range(C_star):
-                    source_color = Xstar_t[r, c]
-                    if source_color < len(sigma_lookup):
-                        law_layer_values[r, c] = sigma_lookup[source_color]
-                    else:
-                        law_layer_values[r, c] = source_color  # Identity fallback
-                    law_mask[r, c] = True
+            # WO-04 DEFENSIVE FIX: Check dimension compatibility
+            H_test, W_test = Xstar_t.shape
+            if (H_test, W_test) != (R_star, C_star):
+                # Dimension mismatch: identity φ cannot work
+                # This indicates witness failed to find geometric transformation
+                print(f"[WITNESS] WARNING: Summary witness with phi=None, but dimension mismatch:")
+                print(f"[WITNESS]   Input: {H_test}×{W_test}, Output: {R_star}×{C_star}")
+                print(f"[WITNESS] This task likely needs tiling/scaling that witness couldn't find.")
+                print(f"[WITNESS] Filling with background color (law_status remains witness_singleton/etc)")
+                # Fill with most common color from sigma domain (usually 0)
+                bg_color = sigma_law.domain_colors[0] if sigma_law and sigma_law.domain_colors else 0
+                law_layer_values[:, :] = bg_color
+                law_mask[:, :] = True
+            else:
+                # Dimensions match, can apply identity
+                for r in range(R_star):
+                    for c in range(C_star):
+                        source_color = Xstar_t[r, c]
+                        if source_color < len(sigma_lookup):
+                            law_layer_values[r, c] = sigma_lookup[source_color]
+                        else:
+                            law_layer_values[r, c] = source_color  # Identity fallback
+                        law_mask[r, c] = True
         else:
             # Geometric witness: apply φ globally (not component-wise)
             # FIX: phi_law encodes transformation, apply to entire OUTPUT grid
