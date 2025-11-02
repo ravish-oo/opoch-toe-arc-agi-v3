@@ -709,6 +709,157 @@ def _load_wo02_receipt(receipts_dir: str, task_id: str) -> dict | None:
     return None
 
 
+def run_wo04c_conjugation() -> list[dict]:
+    """
+    WO-04C: Test witness conjugation to test Π-frame.
+
+    Synthetic test cases where Π differs between train and test:
+    1. Identity conjugation (same Π)
+    2. Rotation conjugation (different pose)
+    3. Anchor conjugation (different anchor)
+    4. Combined conjugation (pose + anchor)
+
+    Returns:
+        List of receipts per test case
+    """
+    from arc.op.witness import PhiPiece, SigmaRc, conjugate_to_test
+    from arc.op.pi import PiTransform
+    from arc.op.anchor import AnchorRc
+    import numpy as np
+
+    results = []
+
+    # Test case 1: Identity conjugation (same Π)
+    test_case = {
+        "test_case": "identity_conjugation",
+        "desc": "Pi_train = Pi_test (identity)",
+    }
+
+    phi_pieces = [
+        PhiPiece(comp_id=0, pose_id=0, dr=1, dc=2, r_per=1, c_per=1, r_res=0, c_res=0),
+        PhiPiece(comp_id=1, pose_id=1, dr=0, dc=1, r_per=1, c_per=1, r_res=0, c_res=0),
+    ]
+    sigma = SigmaRc(domain_colors=[0, 1, 5, 8], lehmer=[], moved_count=0)
+
+    Pi_train = PiTransform(
+        map={}, inv_map={},
+        pose_id=0, anchor=AnchorRc(dr=0, dc=0)
+    )
+    Pi_test = PiTransform(
+        map={}, inv_map={},
+        pose_id=0, anchor=AnchorRc(dr=0, dc=0)
+    )
+
+    phi_star, conj_rc = conjugate_to_test(phi_pieces, sigma, Pi_train, Pi_test)
+
+    # Verify: identity conjugation should preserve pieces
+    assert len(phi_star) == len(phi_pieces)
+    for orig, star in zip(phi_pieces, phi_star):
+        assert orig.pose_id == star.pose_id
+        assert orig.dr == star.dr
+        assert orig.dc == star.dc
+
+    test_case["result"] = "PASS"
+    test_case["conjugation_hash"] = conj_rc.conjugation_hash
+    results.append(test_case)
+
+    # Test case 2: Rotation conjugation (pose differs)
+    test_case = {
+        "test_case": "rotation_conjugation",
+        "desc": "Pi_test.pose = R90, Pi_train.pose = identity",
+    }
+
+    Pi_train = PiTransform(
+        map={}, inv_map={},
+        pose_id=0, anchor=AnchorRc(dr=0, dc=0)
+    )
+    Pi_test = PiTransform(
+        map={}, inv_map={},
+        pose_id=1, anchor=AnchorRc(dr=0, dc=0)  # R90
+    )
+
+    phi_pieces_rot = [
+        PhiPiece(comp_id=0, pose_id=0, dr=2, dc=3, r_per=1, c_per=1, r_res=0, c_res=0),
+    ]
+
+    phi_star_rot, conj_rc_rot = conjugate_to_test(phi_pieces_rot, sigma, Pi_train, Pi_test)
+
+    # Verify pose composed correctly: Π*.pose ∘ φ.pose ∘ inv(Πᵢ.pose) = 1 ∘ 0 ∘ 0 = 1
+    assert phi_star_rot[0].pose_id == 1
+
+    test_case["result"] = "PASS"
+    test_case["conjugation_hash"] = conj_rc_rot.conjugation_hash
+    test_case["transform_receipts"] = conj_rc_rot.transform_receipts
+    results.append(test_case)
+
+    # Test case 3: Anchor conjugation (anchor differs)
+    test_case = {
+        "test_case": "anchor_conjugation",
+        "desc": "Pi_test.anchor != Pi_train.anchor",
+    }
+
+    Pi_train = PiTransform(
+        map={}, inv_map={},
+        pose_id=0, anchor=AnchorRc(dr=2, dc=3)
+    )
+    Pi_test = PiTransform(
+        map={}, inv_map={},
+        pose_id=0, anchor=AnchorRc(dr=5, dc=7)
+    )
+
+    phi_pieces_anc = [
+        PhiPiece(comp_id=0, pose_id=0, dr=10, dc=15, r_per=1, c_per=1, r_res=0, c_res=0),
+    ]
+
+    phi_star_anc, conj_rc_anc = conjugate_to_test(phi_pieces_anc, sigma, Pi_train, Pi_test)
+
+    # Verify anchor shift: dr_new = dr_orig - anchor_train.dr + anchor_test.dr
+    # = 10 - 2 + 5 = 13
+    assert phi_star_anc[0].dr == 13
+    assert phi_star_anc[0].dc == 19  # 15 - 3 + 7 = 19
+
+    test_case["result"] = "PASS"
+    test_case["conjugation_hash"] = conj_rc_anc.conjugation_hash
+    results.append(test_case)
+
+    # Test case 4: Combined (pose + anchor)
+    test_case = {
+        "test_case": "combined_conjugation",
+        "desc": "Both pose and anchor differ",
+    }
+
+    Pi_train = PiTransform(
+        map={}, inv_map={},
+        pose_id=4, anchor=AnchorRc(dr=1, dc=1)  # FlipH
+    )
+    Pi_test = PiTransform(
+        map={}, inv_map={},
+        pose_id=2, anchor=AnchorRc(dr=0, dc=0)  # R180
+    )
+
+    phi_pieces_comb = [
+        PhiPiece(comp_id=0, pose_id=0, dr=5, dc=3, r_per=1, c_per=1, r_res=0, c_res=0),
+    ]
+
+    phi_star_comb, conj_rc_comb = conjugate_to_test(phi_pieces_comb, sigma, Pi_train, Pi_test)
+
+    # Pose composition: compose(2, compose(0, inv(4))) = compose(2, compose(0, 4)) = compose(2, 4) = 6
+    assert phi_star_comb[0].pose_id == 6
+
+    test_case["result"] = "PASS"
+    test_case["conjugation_hash"] = conj_rc_comb.conjugation_hash
+    results.append(test_case)
+
+    print(f"\n{'='*60}")
+    print(f"WO-04C Conjugation Summary")
+    print(f"{'='*60}")
+    print(f"Test cases:         {len(results)}")
+    print(f"Passed:             {sum(1 for r in results if r['result'] == 'PASS')}")
+    print(f"{'='*60}\n")
+
+    return results
+
+
 def run_wo05(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts") -> list[dict]:
     """
     WO-05: Test Truth compiler (Paige-Tarjan gfp).
@@ -2187,6 +2338,24 @@ def main():
         # Flatten for writing
         results = r1_list + r2_list
 
+    elif args.wo == "WO-04C":
+        # WO-04C: Conjugation test with synthetic cases
+        print(f"Running {args.wo} conjugation tests (run 1/2)...")
+        r1_list = run_wo04c_conjugation()
+        print(f"Running {args.wo} conjugation tests (run 2/2)...")
+        r2_list = run_wo04c_conjugation()
+
+        # Determinism check
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Test case {i}: receipts differ")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
+
     elif args.wo == "WO-06":
         print(f"Running {args.wo} on tasks (run 1/2)...")
         r1_list = run_wo06(args.data, args.subset, args.receipts)
@@ -2378,7 +2547,7 @@ def main():
 
     print(f"✓ OK {args.wo} determinism check passed")
     print(f"✓ Receipts written → {outp} ({len(results)} records)")
-    if results:
+    if results and 'env' in results[0]:
         print(f"✓ Environment: {results[0]['env']['platform']} ({results[0]['env']['endian']})")
 
 

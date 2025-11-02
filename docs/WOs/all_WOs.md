@@ -130,7 +130,7 @@
   **Red-team tests:** inject a second write path after law → repaint hash must change and harness must fail.
   **Gotchas:** never re-enter write order; idempotence must pass.
 
-## WO-10 — Family adapters (symbolic slice/band emitters) (MINOR)
+## WO-10 — Family adapters (symbolic slice/band emitters) (MINOR) ✅ COMPLETED
 
 **Goal:** encode canonical ordering rules for symbolic outputs (when witness law is “summary”).
 **Delivers:**
@@ -142,6 +142,11 @@
   **Proof obligations (PO):** axis/orientation frozen; colors come only from witness/unanimity; skyline/slices left→right (first Π-raster appearance) with max-rect preference; receipts include ordering/edges/offsets.
   **Red-team tests:** attempt “most frequent in test” color selection → receipts must expose invalid provenance.
   **Gotchas:** selection must come from witness/unanimity, not “test guess”.
+
+## WO-pre-11
+### WO-04C — Witness conjugation to test Π-frame 
+### WO-10A — Macro-Tiling Engine (bands + strict majority)
+### WO-02S — Shape serialization helper (LOW)
 
 ## WO-11 — Task runner + determinism harness (BLOCKER)
 

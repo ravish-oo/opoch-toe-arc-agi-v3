@@ -83,11 +83,17 @@ class ConjugatedRc:
     """
     Conjugated witness (transported to test Π frame).
 
-    Contract:
+    Contract (WO-04C):
     φ* = Π* ∘ Π_i^(-1) ∘ φ_i ∘ Π_i ∘ Π*^(-1)
+
+    Receipts:
+    - transform_receipts: per-piece old→new (pose_id, dr, dc)
+    - conjugation_hash: BLAKE3(phi_star serialized)
     """
     phi_star: Optional[PhiRc]
     sigma: SigmaRc
+    transform_receipts: Optional[List[Dict]] = None  # Per-piece conjugation details
+    conjugation_hash: Optional[str] = None           # BLAKE3 of phi_star
 
 
 @dataclass
@@ -506,44 +512,144 @@ def conjugate_to_test(
     """
     Conjugate witness to test Π frame.
 
-    Contract:
-    φ* = Π* ∘ Π_i^(-1) ∘ φ_i ∘ Π_i ∘ Π*^(-1)
+    Contract (WO-04C):
+    φ* = Π* ∘ Πᵢ⁻¹ ∘ φᵢ ∘ Πᵢ ∘ Π*⁻¹
 
-    For WO-04: simplified version (structure in place, defer full Π transform composition)
-    Full Π frame transforms will be wired when WO-01 is integrated with witness.
+    For each piece (pose_id, dr, dc):
+    - pose_new = Π*.pose ∘ φ.pose ∘ inv(Πᵢ.pose)
+    - Translation transformed through pose changes and anchor shifts
 
     Args:
         phi_pieces: geometric φ pieces or None
         sigma: palette permutation
-        Pi_train: Π transform for training (future integration)
-        Pi_test: Π transform for test (future integration)
+        Pi_train: Π transform for training (PiTransform from WO-01)
+        Pi_test: Π transform for test (PiTransform from WO-01)
 
     Returns:
         (phi_star_pieces or None, ConjugatedRc)
     """
-    # For now, forward φ pieces as-is (structure preserved)
-    # Full conjugation will compose Π^(-1) transforms when WO-01 integrated
+    from .d4 import compose_pose, get_inverse_pose, transform_vector
 
     if phi_pieces is None:
         # Summary witness: no geometric φ
         conj_rc = ConjugatedRc(
             phi_star=None,
-            sigma=sigma
+            sigma=sigma,
+            transform_receipts=None,
+            conjugation_hash=None
         )
         return None, conj_rc
 
-    # Geometric: conjugate pieces (simplified for now)
-    phi_star_pieces = phi_pieces  # TODO: apply Π frame transforms
+    # If no Π metadata provided, forward as-is (identity conjugation)
+    if Pi_train is None or Pi_test is None:
+        phi_star_rc = PhiRc(
+            pieces=phi_pieces,
+            bbox_equal=[True] * len(phi_pieces),
+            domain_pixels=0
+        )
+        # Identity hash (no transform)
+        phi_star_sorted = sorted(phi_pieces, key=lambda p: p.comp_id)
+        phi_star_bytes = b"".join(
+            f"{p.comp_id},{p.pose_id},{p.dr},{p.dc},{p.r_per},{p.c_per},{p.r_res},{p.c_res}".encode()
+            for p in phi_star_sorted
+        )
+        identity_hash = hash_bytes(phi_star_bytes)
+
+        conj_rc = ConjugatedRc(
+            phi_star=phi_star_rc,
+            sigma=sigma,
+            transform_receipts=[],
+            conjugation_hash=identity_hash
+        )
+        return phi_pieces, conj_rc
+
+    # Extract Π metadata
+    pose_train = Pi_train.pose_id
+    anchor_train = Pi_train.anchor
+    pose_test = Pi_test.pose_id
+    anchor_test = Pi_test.anchor
+
+    # Conjugate each piece
+    phi_star_pieces = []
+    transform_receipts = []
+
+    for piece in phi_pieces:
+        # Original piece parameters
+        pose_orig = piece.pose_id
+        dr_orig = piece.dr
+        dc_orig = piece.dc
+
+        # Conjugate pose: Π*.pose ∘ φ.pose ∘ inv(Πᵢ.pose)
+        inv_pose_train = get_inverse_pose(pose_train)
+        pose_new = compose_pose(pose_test, compose_pose(pose_orig, inv_pose_train))
+
+        # Conjugate translation:
+        # The translation (dr, dc) is AFTER the piece's pose is applied in the Πᵢ frame.
+        # We need to transform this to the Π* frame.
+        #
+        # Transform: Π* ∘ Πᵢ⁻¹
+        # - Unapply Πᵢ anchor
+        # - Transform through: Π*.pose ∘ inv(Πᵢ.pose)
+        # - Apply Π* anchor
+
+        # Step 1: Remove training anchor offset (in training frame, after training pose)
+        dr_step1 = dr_orig - anchor_train.dr
+        dc_step1 = dc_orig - anchor_train.dc
+
+        # Step 2: Transform through the composition: Π*.pose ∘ inv(Πᵢ.pose)
+        # This transforms the vector from Πᵢ-frame to Π*-frame
+        # First unapply Πᵢ.pose
+        dr_step2, dc_step2 = transform_vector(dr_step1, dc_step1, inv_pose_train)
+
+        # Then apply Π*.pose
+        dr_step3, dc_step3 = transform_vector(dr_step2, dc_step2, pose_test)
+
+        # Step 3: Add test anchor offset (in test frame)
+        dr_new = dr_step3 + anchor_test.dr
+        dc_new = dc_step3 + anchor_test.dc
+
+        # Create conjugated piece
+        phi_star_piece = PhiPiece(
+            comp_id=piece.comp_id,
+            pose_id=pose_new,
+            dr=dr_new,
+            dc=dc_new,
+            r_per=piece.r_per,  # Residues unchanged (lattice structure preserved)
+            c_per=piece.c_per,
+            r_res=piece.r_res,
+            c_res=piece.c_res
+        )
+
+        phi_star_pieces.append(phi_star_piece)
+
+        # Record transform for receipts
+        transform_receipts.append({
+            "piece_id": piece.comp_id,
+            "old": {"pose_id": pose_orig, "dr": dr_orig, "dc": dc_orig},
+            "new": {"pose_id": pose_new, "dr": dr_new, "dc": dc_new},
+            "composed_pose": f"Π*.pose={pose_test} ∘ φ.pose={pose_orig} ∘ inv(Πᵢ.pose={pose_train}) = {pose_new}"
+        })
+
+    # Compute conjugation hash
+    # Serialize phi_star for hashing (sorted by comp_id for stability)
+    phi_star_sorted = sorted(phi_star_pieces, key=lambda p: p.comp_id)
+    phi_star_bytes = b"".join(
+        f"{p.comp_id},{p.pose_id},{p.dr},{p.dc},{p.r_per},{p.c_per},{p.r_res},{p.c_res}".encode()
+        for p in phi_star_sorted
+    )
+    conjugation_hash = hash_bytes(phi_star_bytes)
 
     phi_star_rc = PhiRc(
         pieces=phi_star_pieces,
-        bbox_equal=[True] * len(phi_star_pieces),  # Preserved from original
-        domain_pixels=0  # Will be computed in full version
+        bbox_equal=[True] * len(phi_star_pieces),
+        domain_pixels=sum(1 for _ in phi_star_pieces)  # Placeholder
     )
 
     conj_rc = ConjugatedRc(
         phi_star=phi_star_rc,
-        sigma=sigma
+        sigma=sigma,
+        transform_receipts=transform_receipts,
+        conjugation_hash=conjugation_hash
     )
 
     return phi_star_pieces, conj_rc
