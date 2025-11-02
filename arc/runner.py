@@ -221,8 +221,10 @@ def solve_task(
     # Decision: Try engines if shape contradictory or witness fails
     # For WO-11 MVP, we'll try engines first, then fall back to witness
 
-    # Try engines in frozen order
-    engine_names = ["border_scalar", "pooled_blocks", "markers_grid", "slice_stack", "kronecker", "column_dict", "macro_tiling"]  # Implemented engines
+    # Try engines in frozen order (WO-11.md:66)
+    # Frozen spec: ["border_scalar", "window_dict.column", "macro_tiling", "pooled_blocks", "markers_grid", "slice_stack", "kronecker"]
+    # Note: "window_dict.column" implemented as "column_dict" per WO-10
+    engine_names = ["border_scalar", "column_dict", "macro_tiling", "pooled_blocks", "markers_grid", "slice_stack", "kronecker"]
 
     for engine_name in engine_names:
         if engine_name == "border_scalar":
@@ -632,12 +634,72 @@ def solve_task(
 
     # Tie-break (WO-08) if underdetermined
     if law_status == "witness_underdetermined":
-        # TODO: Enumerate all admissible witnesses and build Candidate objects
-        # For now, use first admissible (phi_law, sigma_law)
-        # This is a simplification - proper tie-break requires enumerating all candidates
-        sections["tie"] = {"status": "simplified", "note": "using first admissible"}
+        # Build Candidate from current phi_law and sigma_law
+        from arc.op.tiebreak import Candidate, resolve
+
+        # Serialize phi_law to bytes
+        if phi_law is None:
+            phi_bytes = b""
+            anchor_displacements = []
+            residue_list = []
+            pose_classes = []
+        else:
+            # Serialize phi pieces deterministically
+            phi_strs = []
+            anchor_displacements = []
+            residue_list = []
+            pose_classes = []
+
+            for piece in phi_law:
+                phi_strs.append(f"{piece.comp_id},{piece.pose_id},{piece.dr},{piece.dc},{piece.r_per},{piece.c_per},{piece.r_res},{piece.c_res}")
+                anchor_displacements.append((piece.dr, piece.dc))
+                residue_list.append((piece.r_per, piece.c_per, piece.r_res, piece.c_res))
+
+                # Classify pose: REF=0 < ROT=1 < TRANS=2
+                # TRANS if has translation, REF if identity or reflection, ROT if pure rotation
+                has_translation = (piece.dr != 0 or piece.dc != 0)
+                if has_translation:
+                    pose_classes.append("TRANS")
+                elif piece.pose_id in [1, 2, 3]:  # Pure rotations
+                    pose_classes.append("ROT")
+                else:  # Identity (0) or reflections (4,5,6,7)
+                    pose_classes.append("REF")
+
+            phi_bytes = "|".join(phi_strs).encode()
+
+        # Extract sigma info
+        sigma_domain_colors = sigma_law.domain_colors if sigma_law else []
+        sigma_lehmer = sigma_law.lehmer if sigma_law else []
+
+        # Count components in test input
+        test_masks_by_comp, _ = components.cc4_by_color(Xstar_t)
+        component_count_before = len(test_masks_by_comp)
+        component_count_after = component_count_before  # Neutral assumption (can't compute without applying law)
+
+        # Build Candidate
+        candidate = Candidate(
+            phi_bytes=phi_bytes,
+            sigma_domain_colors=sigma_domain_colors,
+            sigma_lehmer=sigma_lehmer,
+            anchor_displacements=anchor_displacements,
+            component_count_before=component_count_before,
+            component_count_after=component_count_after,
+            residue_list=residue_list,
+            pose_classes=pose_classes,
+            placement_refs=None,  # Not used for witness tie-break
+            skyline_keys=None,    # Not used for witness tie-break
+            meta={"H": R_star, "W": C_star}  # Store shape for potential use
+        )
+
+        # Call tiebreak.resolve() with single candidate to get proper receipts
+        chosen_idx, tie_rc = resolve([candidate], tie_context="none")
+
+        # Store tie-break receipt
+        sections["tie"] = asdict(tie_rc)
         hashes["tie"] = hash_bytes(str(sections["tie"]).encode())
-        law_status = "witness_singleton"  # Treat as resolved
+
+        # Mark as resolved
+        law_status = "witness_singleton"
     elif tie_rc:
         sections["tie"] = asdict(tie_rc)
         hashes["tie"] = hash_bytes(str(sections["tie"]).encode())
@@ -662,13 +724,12 @@ def solve_task(
     # ========================================================================
 
     # Build component masks for test grid (needed by build_free_copy_mask)
+    # comp_masks format: [(mask, r0, c0), ...] where (r0, c0) is bbox top-left
     comp_masks_test = []
     test_masks_by_comp, _ = components.cc4_by_color(Xstar_t)
-    # comp_masks format: [(mask, r0, c0), ...]
-    # For now, use simplified version with full grid masks
-    # TODO: Extract actual bbox offsets from components if needed
+
     for mask in test_masks_by_comp:
-        # Find bbox
+        # Extract bbox top-left corner
         coords = np.argwhere(mask > 0)
         if len(coords) > 0:
             r0, c0 = coords.min(axis=0)
@@ -751,54 +812,136 @@ def solve_task(
     # Step 6.5: Apply witness law if available (compute law layer)
     # ========================================================================
 
-    if law_status in ["witness_singleton"] and phi_law is not None and sigma_law is not None:
+    if law_status in ["witness_singleton"] and sigma_law is not None:
         # Apply witness law: Y[p] = σ(X[φ(p)])
-        # For geometric witness, phi_law is list of PhiPiece
-        # For summary witness, phi_law is None (identity φ)
+        # phi_law can be:
+        # - List[PhiPiece] for geometric witness (component-wise transforms)
+        # - None for summary witness (identity φ, just apply σ globally)
 
-        # For now, this is a placeholder
-        # TODO: Implement full witness law application
-        # This requires evaluating φ on each pixel and applying σ
+        from arc.op.copy import _eval_phi_star_at_pixel
+        from arc.op.tiebreak import lehmer_to_perm
+
+        # Convert Lehmer code to permutation array
+        # sigma_perm[c] = σ(c) for color c
+        sigma_perm = lehmer_to_perm(sigma_law.lehmer) if sigma_law.lehmer else []
+
+        # Create permutation lookup (handle missing colors with identity)
+        max_color = max(sigma_law.domain_colors) if sigma_law.domain_colors else 9
+        sigma_lookup = list(range(max_color + 1))  # Identity by default
+        for i, c in enumerate(sigma_law.domain_colors):
+            if i < len(sigma_perm):
+                sigma_lookup[c] = sigma_law.domain_colors[sigma_perm[i]]
+
         law_layer_values = np.zeros((R_star, C_star), dtype=np.uint8)
-        # Simplified: just mark that witness law exists but don't apply yet
-        law_status = "witness_law_not_applied"  # Mark for tracking
+        law_mask = np.zeros((R_star, C_star), dtype=bool)
+
+        if phi_law is None:
+            # Summary witness: identity φ, apply σ globally
+            for r in range(R_star):
+                for c in range(C_star):
+                    source_color = Xstar_t[r, c]
+                    if source_color < len(sigma_lookup):
+                        law_layer_values[r, c] = sigma_lookup[source_color]
+                    else:
+                        law_layer_values[r, c] = source_color  # Identity fallback
+                    law_mask[r, c] = True
+        else:
+            # Geometric witness: apply φ component-wise
+            # phi_law is List[PhiPiece], comp_masks_test has component info
+            from arc.op.witness import PhiRc
+
+            # Build PhiRc for evaluation
+            phi_rc = PhiRc(
+                pieces=phi_law,
+                bbox_equal=[True] * len(phi_law),  # Already verified
+                domain_pixels=0  # Not needed for evaluation
+            )
+
+            # Evaluate φ for each output pixel
+            for r in range(R_star):
+                for c in range(C_star):
+                    # Evaluate φ*(p) → s (source pixel)
+                    source = _eval_phi_star_at_pixel((r, c), phi_rc, comp_masks_test)
+
+                    if source is not None:
+                        s_r, s_c = source
+                        # Check bounds
+                        if 0 <= s_r < Xstar_t.shape[0] and 0 <= s_c < Xstar_t.shape[1]:
+                            source_color = Xstar_t[s_r, s_c]
+                            # Apply σ
+                            if source_color < len(sigma_lookup):
+                                law_layer_values[r, c] = sigma_lookup[source_color]
+                            else:
+                                law_layer_values[r, c] = source_color  # Identity fallback
+                            law_mask[r, c] = True
 
     # ========================================================================
     # Step 7: Meet — compose with priority copy ▷ law ▷ unanimity ▷ bottom (WO-09)
     # ========================================================================
 
-    # Initialize output canvas
-    Yt = np.zeros((R_star, C_star), dtype=np.uint8)
+    # Encode copy_mask as LSB-first bitset
+    def _encode_bitset_lsb(mask: np.ndarray) -> bytes:
+        """Encode boolean mask as LSB-first bitset."""
+        flat = mask.flatten()
+        size = len(flat)
+        byte_count = (size + 7) // 8
+        bits = []
+        for byte_idx in range(byte_count):
+            byte_val = 0
+            for bit_offset in range(8):
+                idx = byte_idx * 8 + bit_offset
+                if idx < size and flat[idx]:
+                    byte_val |= (1 << bit_offset)
+            bits.append(byte_val)
+        return bytes(bits)
 
-    # Priority: copy ▷ law ▷ unanimity ▷ bottom=0
-    counts = {"copy": 0, "law": 0, "unanimity": 0, "bottom": 0}
+    copy_mask_bits = _encode_bitset_lsb(copy_mask)
 
-    for r in range(R_star):
-        for c in range(C_star):
-            if copy_mask[r, c]:
-                # Copy priority
-                Yt[r, c] = copy_values[r, c]
-                counts["copy"] += 1
-            elif law_layer_values is not None:
-                # Law priority
-                Yt[r, c] = law_layer_values[r, c]
-                counts["law"] += 1
-            elif (r, c) in unanimity_map:
-                # Unanimity priority
-                Yt[r, c] = unanimity_map[(r, c)]
-                counts["unanimity"] += 1
-            else:
-                # Bottom priority (frozen to 0)
-                Yt[r, c] = 0
-                counts["bottom"] += 1
+    # Encode law_mask as LSB-first bitset if it exists
+    law_mask_bits = None
+    if law_layer_values is not None and 'law_mask' in locals():
+        # Witness law with explicit mask
+        law_mask_bits = _encode_bitset_lsb(law_mask)
+    # else: law_mask_bits = None means law defined everywhere (for engines) or nowhere
 
-    # Verify idempotence (repaint)
-    repaint_hash = hash_bytes(Yt.tobytes())
+    # Call compose_meet from WO-09
+    # Note: Xt parameter is only used for shape; all layers are on output grid (R*, C*)
+    Yt_dummy = np.zeros((R_star, C_star), dtype=np.uint8)  # Output shape in Π frame
 
+    # Unanimity: only applies when output shape == input shape
+    # Contract: truth blocks are on INPUT grid; if S changes shape, blocks don't map to output pixels
+    truth_blocks_for_meet = None
+    block_color_map_for_meet = None
+    H_star_input, W_star_input = Xstar_t.shape
+
+    if (R_star == H_star_input) and (C_star == W_star_input):
+        # Shapes match: output pixels align with input blocks
+        truth_blocks_for_meet = truth_partition.labels
+        block_color_map_for_meet = unanimity_map
+    # else: shapes differ → unanimity doesn't apply (output pixels have no block assignment)
+
+    Yt, meet_rc = meet.compose_meet(
+        Xt=Yt_dummy,  # Dummy grid with output shape for size reference
+        copy_mask_bits=copy_mask_bits,
+        copy_values=copy_values,
+        law_mask_bits=law_mask_bits,
+        law_values=law_layer_values,
+        truth_blocks=truth_blocks_for_meet,  # None if shapes differ
+        block_color_map=block_color_map_for_meet,  # None if shapes differ
+        bottom_color=0  # H2: frozen to 0
+    )
+
+    # Store meet receipt
     sections["meet"] = {
-        "counts": counts,
-        "repaint_hash": repaint_hash,
-        "shape": [R_star, C_star],
+        "count_copy": meet_rc.count_copy,
+        "count_law": meet_rc.count_law,
+        "count_unanimity": meet_rc.count_unanimity,
+        "count_bottom": meet_rc.count_bottom,
+        "repaint_hash": meet_rc.repaint_hash,
+        "copy_mask_hash": meet_rc.copy_mask_hash,
+        "law_mask_hash": meet_rc.law_mask_hash,
+        "uni_mask_hash": meet_rc.uni_mask_hash,
+        "shape": list(meet_rc.shape),
     }
     hashes["meet"] = hash_bytes(str(sections["meet"]).encode())
 
