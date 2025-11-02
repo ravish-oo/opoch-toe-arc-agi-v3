@@ -21,11 +21,15 @@ class PaletteRc:
 
     Contract (docs/common_mistakes.md F1):
     - scope must be "inputs_only" to prevent palette misuse
+
+    Contract (CMR-A.3):
+    - logic_color_space must be "original" (palette is display-only, never used in logic)
     """
     palette_hash: str
     palette_freqs: list[tuple[int, int]]  # [(color, freq), ...] sorted
     mapping: list[tuple[int, int]]        # [(orig -> code), ...] sorted by code
     scope: str  # Must be "inputs_only"
+    logic_color_space: str  # Must be "original" (CMR-A.3: palette never affects witness/law logic)
 
 
 def build_palette_canon(
@@ -94,6 +98,7 @@ def build_palette_canon(
         palette_freqs=items,
         mapping=sorted(mapping.items(), key=lambda kv: kv[1]),  # sorted by code
         scope="inputs_only",  # F1 guard: document scope in receipt
+        logic_color_space="original",  # CMR-A.3: palette is display-only, logic operates on original colors
     )
 
     return mapping, inv_map, rc

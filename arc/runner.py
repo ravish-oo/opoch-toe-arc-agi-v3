@@ -1016,7 +1016,9 @@ def solve_task(
                         "sigma_domain_size": len(tw["sigma"].domain),
                         "geometric_trials": tw.get("geometric_trials", []),  # Include for all (geometric + contradictory)
                         # WO-04: Pullback samples (3 per training to prove conjugation)
-                        "pullback_samples": conj_receipts[i].pullback_samples if conj_receipts[i].pullback_samples else []
+                        "pullback_samples": conj_receipts[i].pullback_samples if conj_receipts[i].pullback_samples else [],
+                        # Sigma inference debug info (why sigma fails: coverage, injectivity, surjectivity)
+                        "sigma_debug": tw["receipt"].sigma_debug if hasattr(tw["receipt"], "sigma_debug") and tw["receipt"].sigma_debug else None
                     }
                     for i, tw in enumerate(train_witnesses)
                 ],
@@ -1052,7 +1054,9 @@ def solve_task(
                         "phi_pieces_count": len(tw["phi_pieces"]) if tw["phi_pieces"] else 0,
                         "sigma_domain_size": len(tw["sigma"].domain) if hasattr(tw["sigma"], 'domain') else len(tw["sigma"].domain_colors) if hasattr(tw["sigma"], 'domain_colors') else 0,
                         "sigma_lehmer_len": len(tw["sigma"].lehmer),
-                        "geometric_trials": tw.get("geometric_trials", [])  # Include for all (geometric + contradictory)
+                        "geometric_trials": tw.get("geometric_trials", []),  # Include for all (geometric + contradictory)
+                        # Sigma inference debug info (why sigma fails: coverage, injectivity, surjectivity)
+                        "sigma_debug": tw["receipt"].sigma_debug if hasattr(tw["receipt"], "sigma_debug") and tw["receipt"].sigma_debug else None
                     }
                     for tw in train_witnesses
                 ] if train_witnesses else [],

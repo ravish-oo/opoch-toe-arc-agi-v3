@@ -87,6 +87,8 @@ class TrainWitnessRc:
     background_colors: Optional[List[int]]
     decision_rule: Optional[str]
     per_color_counts: Optional[Dict[int, int]]
+    # Sigma inference debug info (for algebraic debugging of failures)
+    sigma_debug: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -645,6 +647,9 @@ def solve_witness_for_pair(
         if not geometric_ok:
             break
 
+    # Initialize sigma debug info (for algebraic debugging)
+    sigma_debug = {}
+
     # Validate ALL components were matched (WO-04 contract: exact equality everywhere)
     if geometric_ok and pieces:
         # Check that ALL output components were explained
@@ -659,8 +664,15 @@ def solve_witness_for_pair(
 
         # If ANY output component is unmatched, geometric witness FAILS
         total_Y_comps = len(Y_invs)
+
+        # Capture coverage stats for debugging
+        sigma_debug["matched_Y_comp_count"] = len(matched_Y_comp_ids)
+        sigma_debug["total_Y_comp_count"] = total_Y_comps
+        sigma_debug["coverage_complete"] = (len(matched_Y_comp_ids) == total_Y_comps)
+
         if len(matched_Y_comp_ids) < total_Y_comps:
             geometric_ok = False  # Witness cannot explain all output pixels
+            sigma_debug["failure_reason"] = "coverage_incomplete"
 
     # If geometric succeeded, build geometric witness
     if geometric_ok and pieces:
@@ -739,8 +751,13 @@ def solve_witness_for_pair(
             if not geometric_ok:
                 break
 
+        # Capture sigma inference results for debugging
+        sigma_debug["color_mapping"] = dict(color_mapping)
+        sigma_debug["touched_colors"] = sorted(touched_colors)
+
         if not geometric_ok:
             # Inconsistent σ - fall back to summary/identity
+            sigma_debug["failure_reason"] = "color_mapping_inconsistent"
             domain_colors = sorted(set(inv.color for inv in X_invs))
             sigma = SigmaRc(
                 domain_colors=domain_colors,
@@ -754,9 +771,14 @@ def solve_witness_for_pair(
 
             # Check if color_mapping is injective on domain
             target_colors = [color_mapping[c] for c in domain_colors]
-            if len(target_colors) != len(set(target_colors)):
+            is_injective = len(target_colors) == len(set(target_colors))
+            sigma_debug["is_injective"] = is_injective
+            sigma_debug["target_colors"] = target_colors
+
+            if not is_injective:
                 # Not injective - not a valid permutation
                 # Fall back to identity
+                sigma_debug["failure_reason"] = "not_injective"
                 sigma = SigmaRc(
                     domain_colors=domain_colors,
                     lehmer=[],
@@ -765,10 +787,14 @@ def solve_witness_for_pair(
             else:
                 # Check if target_colors form a permutation of domain_colors
                 # (i.e., codomain == domain, making it a true permutation)
-                if set(target_colors) != set(domain_colors):
+                is_surjective = set(target_colors) == set(domain_colors)
+                sigma_debug["is_surjective"] = is_surjective
+
+                if not is_surjective:
                     # Codomain != domain, so it's a partial function, not a permutation
                     # This is still valid (e.g., {1→3} where 3 is a new color)
                     # Extend domain to include codomain colors
+                    sigma_debug["extended_mapping_required"] = True
                     extended_domain = sorted(set(domain_colors) | set(target_colors))
 
                     # Build extended mapping with identity for new colors
@@ -777,8 +803,12 @@ def solve_witness_for_pair(
 
                     # Check injectivity on extended domain
                     extended_targets = [extended_mapping[c] for c in extended_domain]
-                    if len(extended_targets) != len(set(extended_targets)):
+                    extended_is_injective = len(extended_targets) == len(set(extended_targets))
+                    sigma_debug["extended_is_injective"] = extended_is_injective
+
+                    if not extended_is_injective:
                         # Extended mapping not injective - fall back
+                        sigma_debug["failure_reason"] = "extended_not_injective"
                         sigma = SigmaRc(
                             domain_colors=domain_colors,
                             lehmer=[],
@@ -786,6 +816,7 @@ def solve_witness_for_pair(
                         )
                     else:
                         # Build permutation on extended domain
+                        sigma_debug["sigma_type"] = "extended_permutation"
                         color_to_idx = {c: i for i, c in enumerate(extended_domain)}
                         perm = [color_to_idx[extended_mapping[c]] for c in extended_domain]
                         lehmer = _perm_to_lehmer(perm)
@@ -798,6 +829,7 @@ def solve_witness_for_pair(
                         )
                 else:
                     # Perfect permutation: codomain == domain
+                    sigma_debug["sigma_type"] = "perfect_permutation"
                     color_to_idx = {c: i for i, c in enumerate(domain_colors)}
                     perm = [color_to_idx[color_mapping[c]] for c in domain_colors]
                     lehmer = _perm_to_lehmer(perm)
@@ -823,7 +855,8 @@ def solve_witness_for_pair(
             foreground_colors=None,
             background_colors=None,
             decision_rule=None,
-            per_color_counts=None
+            per_color_counts=None,
+            sigma_debug=sigma_debug  # Include debug info for geometric witness
         )
 
         return pieces, sigma, witness_rc
@@ -862,7 +895,8 @@ def solve_witness_for_pair(
         foreground_colors=None,
         background_colors=None,
         decision_rule=None,
-        per_color_counts=None
+        per_color_counts=None,
+        sigma_debug=sigma_debug if sigma_debug else None  # Include debug info if available
     )
 
     return None, sigma, witness_rc
