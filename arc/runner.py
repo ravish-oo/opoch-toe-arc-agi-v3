@@ -107,24 +107,39 @@ def solve_task(
 
     # Apply Π to outputs (spec: "Display outputs through the same map")
     # Contract (00_math_spec.md §1 line 20): "identity fallback for unseen colors"
-    # WO-10K: Apply SAME D4 pose as paired input, so X and Y in same Π frame
+    # WO-03Y FIX: Apply SAME D4 pose AND anchor as paired input
+    # Bug fix: Y must use X's anchor (not recompute), else component count mismatch
     from arc.op.palette import apply_palette_map
     from arc.op.d4 import apply_pose
-    from arc.op.anchor import anchor_to_origin
 
     Yt_list = []
     for i, Y_raw in enumerate(train_Y_raw):
-        # Get the D4 pose that was applied to the paired input
+        # Get the D4 pose AND anchor that were applied to the paired input
         train_grid_rc = pi_rc.per_grid[i]
+        pose_id = train_grid_rc["pose_id"]
+        anchor_dr = train_grid_rc["anchor"]["dr"]
+        anchor_dc = train_grid_rc["anchor"]["dc"]
 
         # Apply palette with identity fallback (unmapped colors → themselves)
         Y_pal = apply_palette_map(Y_raw, Pi_test.map)
 
-        # Apply SAME D4 pose as the paired input (WO-10K requirement)
-        Y_posed = apply_pose(Y_pal, train_grid_rc["pose_id"])
+        # Apply SAME D4 pose as the paired input
+        Y_posed = apply_pose(Y_pal, pose_id)
 
-        # Recompute anchor for the output (may differ from input's anchor)
-        Y_anchored, _ = anchor_to_origin(Y_posed)
+        # Apply SAME anchor as the paired input (WO-03Y: critical for component alignment)
+        # DO NOT recompute anchor - Y must be in the EXACT SAME Π frame as X
+        H, W = Y_posed.shape
+        Y_anchored = np.zeros((H, W), dtype=Y_posed.dtype)
+
+        # Manual anchor shift: move content from (anchor_dr, anchor_dc) to (0, 0)
+        if anchor_dr >= 0 and anchor_dc >= 0:
+            Y_anchored[0:H-anchor_dr, 0:W-anchor_dc] = Y_posed[anchor_dr:H, anchor_dc:W]
+        elif anchor_dr >= 0 and anchor_dc < 0:
+            Y_anchored[0:H-anchor_dr, -anchor_dc:W] = Y_posed[anchor_dr:H, 0:W+anchor_dc]
+        elif anchor_dr < 0 and anchor_dc >= 0:
+            Y_anchored[-anchor_dr:H, 0:W-anchor_dc] = Y_posed[0:H+anchor_dr, anchor_dc:W]
+        else:  # both negative
+            Y_anchored[-anchor_dr:H, -anchor_dc:W] = Y_posed[0:H+anchor_dr, 0:W+anchor_dc]
 
         Yt_list.append(Y_anchored)
 
@@ -266,11 +281,56 @@ def solve_task(
     # Test components
     _, comps_Xstar = components.cc4_by_color(Xstar_t)
 
+    # WO-03Y: Per-training component counts for debugging alignment issues
     sections["components"] = {
-        "trainings": len(comps_X_list),
-        "test_components_count": len(comps_Xstar.invariants)
+        "train": [
+            {
+                "train_id": train_ids[i],
+                "frame": "train_pi",  # X and Y in same Π frame (pose + anchor)
+                "X_shape": list(Xt.shape),
+                "Y_shape": list(Yt.shape),
+                "X_comp_count": len(comps_X.invariants),
+                "Y_comp_count": len(comps_Y.invariants),
+                "connectivity": "4",
+                "color_space": "original",  # CMR-A.3: logic operates on original colors
+                "X_outline_hashes_head": [inv.outline_hash for inv in comps_X.invariants[:8]],
+                "Y_outline_hashes_head": [inv.outline_hash for inv in comps_Y.invariants[:8]]
+            }
+            for i, (Xt, Yt, comps_X, comps_Y) in enumerate(zip(Xt_list, Yt_list, comps_X_list, comps_Y_list))
+        ],
+        "test": {
+            "frame": "test_pi",
+            "X_shape": list(Xstar_t.shape),
+            "X_comp_count": len(comps_Xstar.invariants),
+            "connectivity": "4",
+            "color_space": "original"
+        }
     }
     hashes["components"] = hash_bytes(str(sections["components"]).encode())
+
+    # WO-03Y: Validation guards for component alignment
+    for i, train_comp_rc in enumerate(sections["components"]["train"]):
+        X_count = train_comp_rc["X_comp_count"]
+        Y_count = train_comp_rc["Y_comp_count"]
+        pose_id = pi_rc.per_grid[i]["pose_id"]
+
+        # Guard: Fail fast if Y component count >> X component count
+        # This usually indicates Y was extracted in the wrong frame (missed Π alignment)
+        if Y_count > X_count * 3 and pose_id != 0:
+            raise ValueError(
+                f"Component count mismatch (train {i}): X={X_count}, Y={Y_count} "
+                f"(Y is {Y_count/X_count:.1f}× larger). "
+                f"Likely bug: Y not aligned to X's Π frame (pose={pose_id}). "
+                f"Check that Y uses SAME anchor as X."
+            )
+
+        # Guard: Frame and color_space must be correct
+        if train_comp_rc["frame"] != "train_pi":
+            raise ValueError(f"Component frame must be 'train_pi', got {train_comp_rc['frame']}")
+        if train_comp_rc["color_space"] != "original":
+            raise ValueError(f"Component color_space must be 'original', got {train_comp_rc['color_space']}")
+        if train_comp_rc["connectivity"] != "4":
+            raise ValueError(f"Component connectivity must be '4', got {train_comp_rc['connectivity']}")
 
     # ========================================================================
     # Step 3.6: Color universe (needed for engines and admit layer)
