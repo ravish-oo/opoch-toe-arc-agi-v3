@@ -336,9 +336,10 @@ def select_from_domains(
                             selected_color = copy_color
                             count_copy += 1
 
-            # Path 2: Law (pick min(D*[p]) if non-empty)
-            # No scope gate: law is fallback for any constrained domain
-            if selected_color is None:
+            # Path 2: Law (only if law layer had scope at this pixel)
+            # CMR-A.6: Attribution occurs only where S=1
+            # Law fires only when S_law[p]=1 (witness OR engine constrained pixel)
+            if selected_color is None and S_law is not None and S_law[r, c] == 1:
                 # Find all admitted colors at this pixel
                 admitted = []
                 for color_idx in range(len(C)):

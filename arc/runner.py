@@ -1362,6 +1362,16 @@ def solve_task(
             mask = (truth_partition.labels == block_id)
             unanimity_colors[mask] = color
 
+    # Compute S_law: law scope = witness scope | engine scope (logical OR)
+    # CMR-A.6: Law attribution occurs only where witness OR engine had S=1
+    S_law = np.zeros((R_star, C_star), dtype=np.uint8)
+    if S_w is not None and S_e is not None:
+        S_law = (S_w | S_e).astype(np.uint8)
+    elif S_w is not None:
+        S_law = S_w
+    elif S_e is not None:
+        S_law = S_e
+
     Yt, meet_rc = meet.select_from_domains(
         D_star,
         C,
@@ -1369,6 +1379,7 @@ def solve_task(
         S_copy=S_w,
         unanimity_colors=unanimity_colors,
         S_unanimity=S_u,
+        S_law=S_law,  # Pass law scope mask
         bottom_color=0  # H2: frozen to 0
     )
 
