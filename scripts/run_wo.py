@@ -1647,6 +1647,220 @@ def run_wo08(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts"
     return all_receipts
 
 
+def run_wo09(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts") -> list[dict]:
+    """
+    WO-09: Meet writer (copy ▷ law ▷ unanimity ▷ bottom).
+
+    Contract (WO-09):
+    Compose final Π-frame output in one pass from 4 layers:
+    1. Copy (WO-06): singleton free copies
+    2. Law (WO-04/08/10): witness or engine law
+    3. Unanimity (WO-07): truth-block constants
+    4. Bottom: canonical 0
+
+    Priority (frozen): copy ▷ law ▷ unanimity ▷ bottom (strict, no re-entry)
+
+    Since WO-04/10 are not fully integrated, this harness creates synthetic
+    test cases that exercise all 4 layers and verify idempotence.
+
+    Test cases:
+    1. Copy-only: all pixels via copy layer
+    2. Law-only: all pixels via law layer
+    3. Unanimity-only: all pixels via unanimity layer
+    4. Bottom-only: all pixels via bottom (empty layers)
+    5. Mixed: copy + law + unanimity + bottom
+
+    Returns:
+        List of receipts (one per test case)
+    """
+    from arc.op.meet import compose_meet
+    from arc.op.receipts import env_fingerprint
+    from arc.op.hash import hash_bytes
+
+    # Create synthetic test cases
+    test_cases = []
+
+    # Test 1: Copy-only (3×3 grid, all pixels from copy)
+    test_cases.append({
+        "name": "copy_only",
+        "Xt": np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.int64),
+        "copy_mask_bits": bytes([0xFF, 0x01]),  # all 9 bits set (LSB-first)
+        "copy_values": np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.int64),
+        "law_mask_bits": None,
+        "law_values": None,
+        "truth_blocks": None,
+        "block_color_map": None,
+        "expected_counts": (9, 0, 0, 0),  # (copy, law, unanimity, bottom)
+    })
+
+    # Test 2: Law-only (3×3 grid, all pixels from law)
+    test_cases.append({
+        "name": "law_only",
+        "Xt": np.zeros((3, 3), dtype=np.int64),
+        "copy_mask_bits": None,
+        "copy_values": None,
+        "law_mask_bits": bytes([0xFF, 0x01]),  # all 9 bits set
+        "law_values": np.array([[2, 2, 2], [3, 3, 3], [4, 4, 4]], dtype=np.int64),
+        "truth_blocks": None,
+        "block_color_map": None,
+        "expected_counts": (0, 9, 0, 0),
+    })
+
+    # Test 3: Unanimity-only (3×3 grid, all pixels from unanimity)
+    test_cases.append({
+        "name": "unanimity_only",
+        "Xt": np.zeros((3, 3), dtype=np.int64),
+        "copy_mask_bits": None,
+        "copy_values": None,
+        "law_mask_bits": None,
+        "law_values": None,
+        "truth_blocks": np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2]], dtype=np.int64),
+        "block_color_map": {0: 5, 1: 6, 2: 7},
+        "expected_counts": (0, 0, 9, 0),
+    })
+
+    # Test 4: Bottom-only (3×3 grid, all pixels stay 0)
+    test_cases.append({
+        "name": "bottom_only",
+        "Xt": np.zeros((3, 3), dtype=np.int64),
+        "copy_mask_bits": None,
+        "copy_values": None,
+        "law_mask_bits": None,
+        "law_values": None,
+        "truth_blocks": None,
+        "block_color_map": None,
+        "expected_counts": (0, 0, 0, 9),
+    })
+
+    # Test 5: Mixed priority (3×3 grid with all 4 layers)
+    # Row 0: copy
+    # Row 1: law (where copy doesn't fire)
+    # Row 2: unanimity (where copy+law don't fire)
+    # But we need to respect the priority strictly
+    copy_bits_mixed = bytearray(2)
+    copy_bits_mixed[0] = 0b00000111  # pixels 0,1,2 (row 0)
+    law_bits_mixed = bytearray(2)
+    law_bits_mixed[0] = 0b00111111  # pixels 0-5 (rows 0-1), but copy wins on 0-2
+    test_cases.append({
+        "name": "mixed_priority",
+        "Xt": np.zeros((3, 3), dtype=np.int64),
+        "copy_mask_bits": bytes(copy_bits_mixed),
+        "copy_values": np.array([[1, 1, 1], [0, 0, 0], [0, 0, 0]], dtype=np.int64),
+        "law_mask_bits": bytes(law_bits_mixed),
+        "law_values": np.array([[9, 9, 9], [2, 2, 2], [0, 0, 0]], dtype=np.int64),
+        "truth_blocks": np.array([[0, 0, 0], [0, 0, 0], [1, 1, 1]], dtype=np.int64),
+        "block_color_map": {0: 8, 1: 3},
+        "expected_counts": (3, 3, 3, 0),  # 3 copy (row 0), 3 law (row 1), 3 unanimity (row 2)
+    })
+
+    # Run test cases
+    env = env_fingerprint()
+    all_receipts = []
+
+    for tc in test_cases:
+        # Run compose_meet
+        Y, meet_rc = compose_meet(
+            Xt=tc["Xt"],
+            copy_mask_bits=tc["copy_mask_bits"],
+            copy_values=tc["copy_values"],
+            law_mask_bits=tc["law_mask_bits"],
+            law_values=tc["law_values"],
+            truth_blocks=tc["truth_blocks"],
+            block_color_map=tc["block_color_map"],
+        )
+
+        # Verify expected counts
+        actual_counts = (
+            meet_rc.count_copy,
+            meet_rc.count_law,
+            meet_rc.count_unanimity,
+            meet_rc.count_bottom,
+        )
+        if actual_counts != tc["expected_counts"]:
+            raise ValueError(
+                f"WO-09 test '{tc['name']}' failed: "
+                f"expected counts {tc['expected_counts']}, got {actual_counts}"
+            )
+
+        # Verify idempotence: run again and check hash
+        Y2, meet_rc2 = compose_meet(
+            Xt=tc["Xt"],
+            copy_mask_bits=tc["copy_mask_bits"],
+            copy_values=tc["copy_values"],
+            law_mask_bits=tc["law_mask_bits"],
+            law_values=tc["law_values"],
+            truth_blocks=tc["truth_blocks"],
+            block_color_map=tc["block_color_map"],
+        )
+
+        if not np.array_equal(Y, Y2):
+            raise ValueError(f"WO-09 test '{tc['name']}' failed: Y != Y2 (not idempotent)")
+
+        output_hash = hash_bytes(Y.tobytes())
+        if output_hash != meet_rc.repaint_hash:
+            raise ValueError(
+                f"WO-09 test '{tc['name']}' failed: "
+                f"output_hash {output_hash} != repaint_hash {meet_rc.repaint_hash}"
+            )
+
+        # Verify H2: bottom_color == 0
+        if meet_rc.bottom_color != 0:
+            raise ValueError(
+                f"WO-09 test '{tc['name']}' failed: H2 violation, bottom_color={meet_rc.bottom_color}"
+            )
+
+        # Verify counts sum to total pixels
+        H, W = tc["Xt"].shape
+        total = meet_rc.count_copy + meet_rc.count_law + meet_rc.count_unanimity + meet_rc.count_bottom
+        if total != H * W:
+            raise ValueError(
+                f"WO-09 test '{tc['name']}' failed: "
+                f"counts sum to {total}, expected {H*W}"
+            )
+
+        # Build receipt
+        stage_hashes = {
+            "meet": meet_rc.repaint_hash,
+            "copy_mask": meet_rc.copy_mask_hash or "none",
+            "law_mask": meet_rc.law_mask_hash or "none",
+            "uni_mask": meet_rc.uni_mask_hash or "none",
+        }
+
+        notes = {
+            "test_case": tc["name"],
+            "meet": {
+                "count_copy": meet_rc.count_copy,
+                "count_law": meet_rc.count_law,
+                "count_unanimity": meet_rc.count_unanimity,
+                "count_bottom": meet_rc.count_bottom,
+                "bottom_color": meet_rc.bottom_color,
+                "repaint_hash": meet_rc.repaint_hash,
+                "copy_mask_hash": meet_rc.copy_mask_hash,
+                "law_mask_hash": meet_rc.law_mask_hash,
+                "uni_mask_hash": meet_rc.uni_mask_hash,
+                "frame": meet_rc.frame,
+                "shape": meet_rc.shape,
+            },
+        }
+
+        receipt = {
+            "env": {
+                "platform": env.platform,
+                "endian": env.endian,
+                "py_version": env.py_version,
+                "blake3_version": env.blake3_version,
+                "compiler_version": env.compiler_version,
+                "build_flags_hash": env.build_flags_hash,
+            },
+            "stage_hashes": stage_hashes,
+            "notes": notes,
+        }
+
+        all_receipts.append(receipt)
+
+    return all_receipts
+
+
 def main():
     """
     Run WO determinism harness.
@@ -1883,6 +2097,44 @@ def main():
             print(f"{'='*60}")
             print(f"Test cases:         {n_tests}")
             print(f"All tests passed:   ✓")
+            print(f"{'='*60}\n")
+
+    elif args.wo == "WO-09":
+        print(f"Running {args.wo} on tasks (run 1/2)...")
+        r1_list = run_wo09(args.data, args.subset, args.receipts)
+        print(f"Running {args.wo} on tasks (run 2/2)...")
+        r2_list = run_wo09(args.data, args.subset, args.receipts)
+
+        # Determinism check: compare lists
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Task {i}: receipts differ")
+                    if a.get("stage_hashes") != b.get("stage_hashes"):
+                        print(f"    Run 1 hashes: {a.get('stage_hashes')}")
+                        print(f"    Run 2 hashes: {b.get('stage_hashes')}")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
+
+        # Print summary
+        if results:
+            total_copy = sum(r.get("notes", {}).get("meet", {}).get("count_copy", 0) for r in results) // 2
+            total_law = sum(r.get("notes", {}).get("meet", {}).get("count_law", 0) for r in results) // 2
+            total_unanimity = sum(r.get("notes", {}).get("meet", {}).get("count_unanimity", 0) for r in results) // 2
+            total_bottom = sum(r.get("notes", {}).get("meet", {}).get("count_bottom", 0) for r in results) // 2
+            n_tasks = len(results) // 2
+
+            print(f"\n{'='*60}")
+            print(f"WO-09 Summary")
+            print(f"{'='*60}")
+            print(f"Tasks:              {n_tasks}")
+            print(f"Copy pixels:        {total_copy}")
+            print(f"Law pixels:         {total_law}")
+            print(f"Unanimity pixels:   {total_unanimity}")
+            print(f"Bottom pixels:      {total_bottom}")
             print(f"{'='*60}\n")
 
     else:
