@@ -1132,6 +1132,225 @@ def run_wo06(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts"
     return all_receipts
 
 
+def _load_wo05_receipt(receipts_dir: str, task_id: str) -> dict | None:
+    """
+    Load WO-05 receipt for given task_id.
+
+    Args:
+        receipts_dir: Path to receipts directory
+        task_id: Task identifier
+
+    Returns:
+        Truth receipt dict or None if not found
+    """
+    import json
+
+    wo05_path = os.path.join(receipts_dir, "WO-05_run.jsonl")
+    if not os.path.exists(wo05_path):
+        return None
+
+    with open(wo05_path) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            receipt = json.loads(line)
+            if receipt.get("notes", {}).get("task_id") == task_id:
+                return receipt.get("notes", {}).get("truth")
+
+    return None
+
+
+def run_wo07(data_dir: str, subset_file: str, receipts_dir: str = "out/receipts") -> list[dict]:
+    """
+    WO-07: Test Unanimity on truth blocks.
+
+    For each task:
+    1. Load WO-02 Shape S (frozen params)
+    2. Load WO-05 truth partition
+    3. Load training outputs (raw, not presented)
+    4. For each truth block B:
+       a. Pull back pixels to training outputs via frozen Π+S
+       b. Check if at least one training defines pixels (G1)
+       c. Check if all defined trainings have singleton colors
+       d. Check if all singletons equal
+    5. Build unanimity receipts
+    6. Verify G1: empty pullback → no unanimity
+    7. Run twice and verify determinism
+    8. Collect receipts
+
+    Contract (00_math_spec.md §6):
+    For each truth block B, unanimous color u(B) if all trainings agree.
+
+    Contract (02_determinism_addendum.md §5):
+    "If the pullback is **empty for every training**, unanimity **does not apply**"
+
+    Args:
+        data_dir: Path to ARC task JSON files
+        subset_file: File containing task IDs
+        receipts_dir: Path to receipts directory (default: out/receipts)
+
+    Returns:
+        List of receipts (one per task)
+    """
+    from arc.op.pi import present_all
+    from arc.op.shape import deserialize_shape, apply_shape
+    from arc.op.unanimity import compute_unanimity
+    from dataclasses import asdict
+
+    # Load task IDs
+    with open(subset_file) as f:
+        task_ids = [line.strip() for line in f if line.strip()]
+
+    all_receipts = []
+
+    for task_id in task_ids:
+        # Load task
+        task_path = os.path.join(data_dir, f"{task_id}.json")
+        task = load_task(task_path)
+
+        # Load WO-02 Shape S
+        shape_receipt = _load_wo02_receipt(receipts_dir, task_id)
+        if shape_receipt is None:
+            print(f"⚠️  Skipping {task_id}: WO-02 receipt not found")
+            continue
+
+        # Check for SHAPE_CONTRADICTION
+        if shape_receipt.get("branch_byte") == "":
+            print(f"⚠️  Skipping {task_id}: SHAPE_CONTRADICTION (from WO-02)")
+            continue
+
+        # Load WO-05 truth partition
+        truth_receipt = _load_wo05_receipt(receipts_dir, task_id)
+        if truth_receipt is None:
+            print(f"⚠️  Skipping {task_id}: WO-05 receipt not found")
+            continue
+
+        # Load test input and apply Π
+        test_input = np.array(task["test"][0]["input"], dtype=np.int64)
+        train_inputs = [np.array(pair["input"], dtype=np.int64) for pair in task["train"]]
+
+        # Apply Π to get presented frames
+        train_presented, test_presented, transform, pi_rc = present_all(
+            train_inputs, test_input
+        )
+
+        # Reconstruct truth partition from WO-05
+        # For now, we'll reconstruct it by running truth computation
+        # (In production, we'd serialize the partition array in WO-05 receipts)
+        # For this implementation, let me compute it fresh
+        from arc.op.truth import compute_truth_partition
+
+        result = compute_truth_partition(test_presented)
+        if result is None:
+            print(f"⚠️  Skipping {task_id}: Truth partition failed")
+            continue
+
+        truth_blocks = result.labels  # H_* × W_* array
+        truth_rc = result.receipt
+
+        # Get test shape
+        H_star, W_star = test_presented.shape
+
+        # Build train_infos: [(train_id, (H_i,W_i), (R_i,C_i), Y_i), ...]
+        train_infos = []
+
+        for i, pair in enumerate(task["train"]):
+            train_id = f"{task_id}_train{i}"
+
+            # Get presented input dimensions
+            H_i, W_i = train_presented[i].shape
+
+            # Get output (raw, not presented)
+            Y_i = np.array(pair["output"], dtype=np.int64)
+            R_i, C_i = Y_i.shape
+
+            # Verify against WO-02 Shape S
+            # Deserialize S and apply to presented input dims
+            branch_byte = shape_receipt["branch_byte"]
+            params_hex = shape_receipt["params_hex"]
+            extras = shape_receipt.get("extras", {})
+
+            # Handle q_components special case
+            qual_id = extras.get("qual_id")
+            if qual_id == "q_components":
+                from arc.op.components import cc4_by_color
+
+                a1, b1, a2, b2 = extras["coeffs"]
+                _, train_comp_rc = cc4_by_color(train_presented[i])
+                q_train = len(train_comp_rc.invariants)
+
+                R_expected = a1 * q_train + b1
+                C_expected = a2 * q_train + b2
+
+            else:
+                # Standard case: deserialize S and apply
+                S = deserialize_shape(branch_byte, params_hex, extras)
+                R_expected, C_expected = apply_shape(S, H_i, W_i)
+
+            # Verify output dimensions match
+            if (R_i, C_i) != (R_expected, C_expected):
+                print(
+                    f"⚠️  Warning {train_id}: Output dims {(R_i,C_i)} != expected {(R_expected,C_expected)}"
+                )
+
+            train_infos.append((train_id, (H_i, W_i), (R_i, C_i), Y_i))
+
+        # Compute unanimity
+        block_color_map, unanimity_rc = compute_unanimity(
+            truth_blocks, (H_star, W_star), train_infos
+        )
+
+        # G1 VERIFICATION: Empty pullback blocks should have no color
+        for block_vote in unanimity_rc.blocks:
+            if len(block_vote.defined_train_ids) == 0:
+                # G1: Empty pullback
+                if block_vote.color is not None:
+                    raise ValueError(
+                        f"Task {task_id}: G1 violation! Block {block_vote.block_id} has empty pullback but color={block_vote.color}"
+                    )
+
+        # Build receipt for this task
+        env = env_fingerprint()
+
+        stage_hashes = {
+            "wo": "WO-07",
+            "unanimity.table_hash": unanimity_rc.table_hash,
+        }
+
+        # Serialize block votes
+        blocks_serialized = []
+        for vote in unanimity_rc.blocks:
+            blocks_serialized.append({
+                "block_id": vote.block_id,
+                "color": vote.color,
+                "defined_train_ids": vote.defined_train_ids,
+                "per_train_colors": vote.per_train_colors,
+                "pixel_count": vote.pixel_count,
+                "defined_pixel_counts": vote.defined_pixel_counts,
+            })
+
+        run_rc = RunRc(
+            env=env,
+            stage_hashes=stage_hashes,
+            notes={
+                "task_id": task_id,
+                "unanimity": {
+                    "blocks_total": unanimity_rc.blocks_total,
+                    "unanimous_count": unanimity_rc.unanimous_count,
+                    "empty_pullback_blocks": unanimity_rc.empty_pullback_blocks,
+                    "disagree_blocks": unanimity_rc.disagree_blocks,
+                    "table_hash": unanimity_rc.table_hash,
+                    "blocks_sample": blocks_serialized[:10],  # First 10 for brevity
+                    "blocks_full_count": len(blocks_serialized),
+                },
+            },
+        )
+
+        all_receipts.append(aggregate(run_rc))
+
+    return all_receipts
+
+
 def main():
     """
     Run WO determinism harness.
@@ -1299,6 +1518,44 @@ def main():
             print(f"Total undefined:  {total_undefined}")
             print(f"Total disagree:   {total_disagree}")
             print(f"Total multi-hit:  {total_multihit}")
+            print(f"{'='*60}\n")
+
+    elif args.wo == "WO-07":
+        print(f"Running {args.wo} on tasks (run 1/2)...")
+        r1_list = run_wo07(args.data, args.subset, args.receipts)
+        print(f"Running {args.wo} on tasks (run 2/2)...")
+        r2_list = run_wo07(args.data, args.subset, args.receipts)
+
+        # Determinism check: compare lists
+        if r1_list != r2_list:
+            print("ERROR: NONDETERMINISTIC_EXECUTION")
+            for i, (a, b) in enumerate(zip(r1_list, r2_list)):
+                if a != b:
+                    print(f"  Task {i}: receipts differ")
+                    if a.get("stage_hashes") != b.get("stage_hashes"):
+                        print(f"    Run 1 hashes: {a.get('stage_hashes')}")
+                        print(f"    Run 2 hashes: {b.get('stage_hashes')}")
+            exit(2)
+
+        # Flatten for writing
+        results = r1_list + r2_list
+
+        # Print summary
+        if results:
+            total_unanimous = sum(r.get("notes", {}).get("unanimity", {}).get("unanimous_count", 0) for r in results) // 2
+            total_empty = sum(r.get("notes", {}).get("unanimity", {}).get("empty_pullback_blocks", 0) for r in results) // 2
+            total_disagree = sum(r.get("notes", {}).get("unanimity", {}).get("disagree_blocks", 0) for r in results) // 2
+            total_blocks = sum(r.get("notes", {}).get("unanimity", {}).get("blocks_total", 0) for r in results) // 2
+            n_tasks = len(results) // 2
+
+            print(f"\n{'='*60}")
+            print(f"WO-07 Summary")
+            print(f"{'='*60}")
+            print(f"Tasks:              {n_tasks}")
+            print(f"Total blocks:       {total_blocks}")
+            print(f"Unanimous blocks:   {total_unanimous}")
+            print(f"Empty pullbacks:    {total_empty}")
+            print(f"Disagree blocks:    {total_disagree}")
             print(f"{'='*60}\n")
 
     else:

@@ -94,7 +94,7 @@
   **Red-team tests:** one training undefined at p; ensure no copy occurs.
   **Gotchas:** any undefined ⇒ S(p)=∅.
 
-## WO-07 — Unanimity on truth blocks (MAJOR)
+## WO-07 — Unanimity on truth blocks (MAJOR) ✅ COMPLETED
 
 **Goal:** constant color per block if all trainings agree where defined.
 **Delivers:**

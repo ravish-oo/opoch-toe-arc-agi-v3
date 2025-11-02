@@ -127,6 +127,41 @@ class CopyRc:
 
 
 @dataclass
+class BlockVote:
+    """
+    Per-block unanimity vote.
+
+    Contract (02_determinism_addendum.md §5):
+    Record (block_id, color, defined_train_ids) for each truth block.
+    """
+    block_id: int
+    color: int | None                        # None if not unanimous
+    defined_train_ids: list[str]             # trainings that defined ≥1 pixel
+    per_train_colors: dict[str, list[int]]   # unique colors per training
+    pixel_count: int                         # |B|
+    defined_pixel_counts: dict[str, int]     # #defined pixels per training
+
+
+@dataclass
+class UnanimityRc:
+    """
+    Unanimity receipt.
+
+    Contract (02_determinism_addendum.md §10):
+    "Unanimity: list of (block_id, color, defined_train_ids)"
+
+    Contract (00_math_spec.md §6):
+    For each truth block B, unanimous color u(B) if all trainings agree.
+    """
+    blocks_total: int                # total truth blocks
+    unanimous_count: int             # blocks with unanimous color
+    empty_pullback_blocks: int       # G1: blocks where no training defines pixels
+    disagree_blocks: int             # blocks where trainings disagree
+    table_hash: str                  # BLAKE3 of decision table
+    blocks: list[dict[str, Any]]     # BlockVote serialized (or minimal if large)
+
+
+@dataclass
 class RunRc:
     """
     Root receipt container for a single task run.
