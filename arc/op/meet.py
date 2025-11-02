@@ -264,21 +264,22 @@ def select_from_domains(
     S_copy: Optional[np.ndarray] = None,     # Copy scope mask (H,W) uint8, or None
     unanimity_colors: Optional[np.ndarray] = None,  # Unanimous colors (H,W), or None
     S_unanimity: Optional[np.ndarray] = None,  # Unanimity scope mask (H,W) uint8, or None
+    S_law: Optional[np.ndarray] = None,      # Law scope mask (H,W) uint8 = S_witness | S_engine
     *,
     bottom_color: int = 0                    # H2: must be 0
 ) -> Tuple[np.ndarray, MeetRc]:
     """
     Select from final domains D* using scope-gated frozen precedence.
 
-    Contract (WO-09' + Scope S):
+    Contract (WO-09' + Scope S + CMR-A.6):
     For each pixel p, selection inside D*[p] with scope gating:
     1. If S_copy[p]=1 AND copy_value[p] ∈ D*[p]: select copy_value[p] (copy path)
-    2. Else if D*[p] ≠ ∅: select min(D*[p]) (law path)
+    2. Else if S_law[p]=1 AND D*[p] ≠ ∅: select min(D*[p]) (law path)
     3. Else if S_unanimity[p]=1 AND unanimity_color[p] ∈ D*[p]: select unanimity_color[p] (unanimity path)
     4. Else: select 0 (bottom path)
 
-    Scope gating: a layer only "wins" precedence if its scope S[p]=1 (non-silent).
-    Law path has no scope gate (always tries min(D*[p]) as fallback).
+    Scope gating (CMR-A.6): a layer only "wins" precedence if its scope S[p]=1 (non-silent).
+    Law attribution occurs only where S_law[p]=1 (witness OR engine constrained pixel).
 
     Containment guarantee: selected ∈ D*[p] always (harness will verify)
     Idempotence: repaint produces same hash

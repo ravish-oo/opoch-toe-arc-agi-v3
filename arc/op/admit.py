@@ -289,9 +289,14 @@ def admit_from_witness(
         A_w[..., K - 1] &= mask
 
     # Check if witness produced a singleton law
+    # Contract (WO-04 updated): intersection.status can be:
+    # - "singleton": unique geometric law found → emit copy+recolor admits
+    # - "contradictory": no geometric law found → emit all-ones (no constraints), S=0
+    # - "underdetermined": multiple laws fit → emit all-ones (no constraints), S=0
     intersection = witness_rc.get("intersection", {})
     if intersection.get("status") != "singleton":
         # No constraint from witness - silent (S=0)
+        # This covers: contradictory, underdetermined, or failed witness
         stats = {
             "set_bits": H * W * len(C),
             "scope_bits": 0,
@@ -308,27 +313,8 @@ def admit_from_witness(
             stats=stats
         )
 
-    # Check if any training is summary
+    # Singleton geometric witness: emit copy admits + recolor admits (WO-10Z)
     per_train = witness_rc.get("per_train", [])
-    if any(t.get("kind") == "summary" for t in per_train):
-        # Summary witness: no constraints - silent (S=0)
-        stats = {
-            "set_bits": H * W * len(C),
-            "scope_bits": 0,
-            "nontrivial_bits": 0,
-            "removed_bottom_bits": 0,
-            "pieces": 0,
-            "sigma_moved": 0
-        }
-        return A_w, S_w, AdmitLayerRc(
-            name="witness",
-            bitmap_hash=_bitmap_hash(A_w),
-            scope_hash=hash_bytes(S_w.tobytes()),
-            support_colors=C.copy(),
-            stats=stats
-        )
-
-    # Geometric witness: implement copy admits + recolor admits (WO-10Z)
     # Start with empty admits (no colors allowed), scope=0 (will set to 1 where constrained)
     A_w = np.zeros((H, W, K), dtype=np.uint64)
     S_w = np.zeros((H, W), dtype=np.uint8)

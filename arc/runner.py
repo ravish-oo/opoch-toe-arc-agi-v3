@@ -962,11 +962,13 @@ def solve_task(
                 "geometric_trials": train_rc.phi.geometric_trials if train_rc.phi and hasattr(train_rc.phi, 'geometric_trials') else []
             })
 
-            # Check if witness solving truly failed
-            # Summary witnesses have phi_pieces=None but are still valid
-            # (they contribute via unanimity, not law)
-            # Only fail if the witness couldn't be computed at all
-            if train_rc.kind != "summary" and (phi_pieces is None and sigma.lehmer == []):
+            # Check if witness solving is inconsistent
+            # Contract (WO-04 updated): two valid outcomes:
+            # - kind="geometric": phi_pieces present, sigma with domain
+            # - kind="contradictory": phi_pieces=None, sigma with empty domain
+            # Any other combination is an internal error
+            if train_rc.kind == "geometric" and phi_pieces is None:
+                # Inconsistent: claims geometric but no phi
                 witness_ok = False
                 break
 
@@ -1010,14 +1012,9 @@ def solve_task(
                 "trainings": [
                     {
                         "train_id": tw["train_id"],
-                        "phi_kind": "geometric" if tw["phi_pieces"] else "summary",
+                        "phi_kind": tw["receipt"].kind,  # "geometric" or "contradictory"
                         "sigma_domain_size": len(tw["sigma"].domain),
                         "geometric_trials": tw.get("geometric_trials", []) if tw["phi_pieces"] else None,  # WO-05: tiling debug
-                        # WO-04S: A1/C2 receipts for summary witnesses
-                        "foreground_colors": tw["receipt"].foreground_colors if tw["receipt"].kind == "summary" else None,
-                        "background_colors": tw["receipt"].background_colors if tw["receipt"].kind == "summary" else None,
-                        "decision_rule": tw["receipt"].decision_rule if tw["receipt"].kind == "summary" else None,
-                        "per_color_counts": tw["receipt"].per_color_counts if tw["receipt"].kind == "summary" else None,
                         # WO-04: Pullback samples (3 per training to prove conjugation)
                         "pullback_samples": conj_receipts[i].pullback_samples if conj_receipts[i].pullback_samples else []
                     }
@@ -1051,16 +1048,11 @@ def solve_task(
                 "trainings": [
                     {
                         "train_id": tw["train_id"],
-                        "phi_kind": "geometric" if tw["phi_pieces"] else "summary",
+                        "phi_kind": tw["receipt"].kind,  # "geometric" or "contradictory"
                         "phi_pieces_count": len(tw["phi_pieces"]) if tw["phi_pieces"] else 0,
                         "sigma_domain_size": len(tw["sigma"].domain) if hasattr(tw["sigma"], 'domain') else len(tw["sigma"].domain_colors) if hasattr(tw["sigma"], 'domain_colors') else 0,
                         "sigma_lehmer_len": len(tw["sigma"].lehmer),
-                        "geometric_trials": tw.get("geometric_trials", []) if tw["receipt"].kind == "geometric" else None,
-                        # WO-04S: A1/C2 receipts for summary witnesses (for debugging failures)
-                        "foreground_colors": tw["receipt"].foreground_colors if tw["receipt"].kind == "summary" else None,
-                        "background_colors": tw["receipt"].background_colors if tw["receipt"].kind == "summary" else None,
-                        "decision_rule": tw["receipt"].decision_rule if tw["receipt"].kind == "summary" else None,
-                        "per_color_counts": tw["receipt"].per_color_counts if tw["receipt"].kind == "summary" else None
+                        "geometric_trials": tw.get("geometric_trials", []) if tw["receipt"].kind == "geometric" else None
                     }
                     for tw in train_witnesses
                 ] if train_witnesses else [],
@@ -1297,9 +1289,9 @@ def solve_task(
                 }
             })
         else:
-            # Summary witness
+            # Contradictory witness (no geometric law found)
             per_train.append({
-                "kind": "summary",
+                "kind": "contradictory",
                 "sigma": {"domain_colors": [], "lehmer": [], "moved_count": 0}
             })
 

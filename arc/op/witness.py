@@ -73,15 +73,16 @@ class TrainWitnessRc:
     """
     Per-training witness receipt.
 
-    Contract:
-    - kind: "geometric" or "summary"
-    - Geometric: phi + sigma with E2 proofs
-    - Summary: sigma + A1/C2 receipts (candidate sets, decision rule, counts)
+    Contract (WO-04 updated):
+    - kind: "geometric" or "contradictory"
+    - Geometric: phi + sigma with E2 proofs (bbox equality verified)
+    - Contradictory: phi=None, sigma with empty domain (geometric search failed)
+    - No third "summary" state (removed per updated spec)
     """
-    kind: str  # "geometric" | "summary"
-    phi: Optional[PhiRc]  # None for summary
+    kind: str  # "geometric" | "contradictory"
+    phi: Optional[PhiRc]  # None for contradictory
     sigma: SigmaRc
-    # Summary-law receipts (A1/C2)
+    # Legacy fields (kept for backward compatibility, always None for contradictory)
     foreground_colors: Optional[List[int]]
     background_colors: Optional[List[int]]
     decision_rule: Optional[str]
@@ -833,39 +834,26 @@ def solve_witness_for_pair(
         # Row-coframe geometric succeeded
         return row_pieces, row_sigma, row_witness_rc
 
-    # Fall back to summary path (A1/C2)
+    # Geometric search failed → contradictory witness
+    # Contract (WO-04 + updated spec): Only two outcomes are valid:
+    # 1. Geometric law proved (φ ∈ D4⋉ℤ² + σ)
+    # 2. Contradiction (no φ that proves pixel-exact equality)
 
-    # A1: Candidate sets are part of the law
-    # Foreground = all non-zero colors in X ∪ Y
-    # Background = {0, 1} ∩ (X ∪ Y)
-    X_colors = set(np.unique(X).tolist())
-    Y_colors = set(np.unique(Y).tolist())
-    all_colors = sorted(X_colors | Y_colors)
-
-    foreground_colors = [c for c in all_colors if c not in (0,)]
-    background_colors = [c for c in all_colors if c in (0, 1)]
-
-    # C2: Decision rule frozen (contract: explicit string, no dynamic choices)
-    decision_rule = "strict_majority_foreground_fallback_0"
-
-    # A1: Record per-color counts on Y (the decision window for this example)
-    per_color_counts = {c: int(np.sum(Y == c)) for c in all_colors}
-
-    # σ: identity (no recoloring in summary mode for now)
+    # Return contradictory witness with empty σ domain
     sigma = SigmaRc(
-        domain_colors=sorted(all_colors),
+        domain_colors=[],  # Empty domain (no colors mapped)
         lehmer=[],
         moved_count=0
     )
 
     witness_rc = TrainWitnessRc(
-        kind="summary",
-        phi=None,
+        kind="contradictory",
+        phi=None,  # No geometric transformation found
         sigma=sigma,
-        foreground_colors=foreground_colors,
-        background_colors=background_colors,
-        decision_rule=decision_rule,
-        per_color_counts=per_color_counts
+        foreground_colors=None,
+        background_colors=None,
+        decision_rule=None,
+        per_color_counts=None
     )
 
     return None, sigma, witness_rc
@@ -906,7 +894,7 @@ def conjugate_to_test(
     from .d4 import compose_pose, get_inverse_pose, transform_vector, PiFrame, D4_R, D4_R_INV
 
     if phi_pieces is None:
-        # Summary witness: no geometric φ
+        # Contradictory witness: no geometric φ found
         conj_rc = ConjugatedRc(
             phi_star=None,
             sigma=sigma,
@@ -1111,27 +1099,16 @@ def intersect_witnesses(
         return None, SigmaRc([], [], 0), IntersectionRc("contradictory", 0)
 
     # Classify by kind
+    # Contract (WO-04 updated): phi=None now means contradictory (no geometric found)
     kinds = ["none" if phi is None else "geom" for phi, _ in conj_list]
 
-    # Check for mixed types (contradictory)
-    if "geom" in kinds and "none" in kinds:
+    # Any training with contradictory witness → task-level contradictory
+    # Spec: witness either proves geometric law OR contradiction (no third state)
+    if "none" in kinds:
+        # At least one training failed geometric search → no witness law
         return None, conj_list[0][1], IntersectionRc("contradictory", 0)
 
-    # All summary (φ=None)
-    if all(k == "none" for k in kinds):
-        # Check σ consistency
-        sigma_0 = conj_list[0][1]
-        lehmer_0 = sigma_0.lehmer
-
-        for _, sigma in conj_list[1:]:
-            if sigma.lehmer != lehmer_0:
-                # σ mismatch → contradictory
-                return None, sigma_0, IntersectionRc("contradictory", 0)
-
-        # Singleton: all summary with matching σ
-        return None, sigma_0, IntersectionRc("singleton", 1)
-
-    # All geometric
+    # All geometric - check parameter consistency
     phi_0, sigma_0 = conj_list[0]
 
     if phi_0 is None:

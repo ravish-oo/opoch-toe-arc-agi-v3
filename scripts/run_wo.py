@@ -554,17 +554,15 @@ def run_wo04(data_dir: str, subset_file: str) -> list[dict]:
     For each task:
     1. Load training pairs
     2. Extract components with WO-03
-    3. Solve witness per training pair (geometric or summary)
+    3. Solve witness per training pair (geometric or contradictory)
     4. Conjugate to test Π frame
     5. Intersect across trainings
     6. Verify E2: bbox equality for geometric witnesses
-    7. Verify A1/C2: candidate sets and decision rules for summary witnesses
-    8. Collect receipts
+    7. Collect receipts
 
-    Contract:
+    Contract (WO-04 updated):
     - E2: Every φ piece must prove bbox equality (exact pixelwise)
-    - A1: Candidate sets part of law (record foreground/background colors, counts)
-    - C2: Decision rule frozen string
+    - Only two outcomes: geometric law OR contradiction (no summary state)
 
     Returns:
         List of receipts (one per task)
@@ -614,24 +612,8 @@ def run_wo04(data_dir: str, subset_file: str) -> list[dict]:
                         f"  bbox_equal: {witness_rc.phi.bbox_equal}"
                     )
 
-            # A1/C2 VERIFICATION: For summary, check receipts present
-            if witness_rc.kind == "summary":
-                if witness_rc.foreground_colors is None:
-                    raise ValueError(
-                        f"Task {train_id}: A1 violation! Summary witness missing foreground_colors"
-                    )
-                if witness_rc.background_colors is None:
-                    raise ValueError(
-                        f"Task {train_id}: A1 violation! Summary witness missing background_colors"
-                    )
-                if witness_rc.decision_rule is None:
-                    raise ValueError(
-                        f"Task {train_id}: C2 violation! Summary witness missing decision_rule"
-                    )
-                if witness_rc.per_color_counts is None:
-                    raise ValueError(
-                        f"Task {train_id}: A1 violation! Summary witness missing per_color_counts"
-                    )
+            # Contract (WO-04 updated): No validation for contradictory witnesses
+            # Witness either proves geometric law OR declares contradiction (both valid)
 
             train_witnesses.append((phi_pieces, sigma, witness_rc))
 
