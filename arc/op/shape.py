@@ -1056,14 +1056,14 @@ def synthesize_shape(
 
             return None, rc
 
-    # Create receipt (R, C, verified_train_ids will be filled by caller) (WO-02Z)
+    # Create receipt (R, C will be filled by caller after applying to test) (WO-02Z)
     rc = ShapeRc(
         status="OK",  # WO-02Z: provably fits all trainings
         branch_byte=branch,
         params_bytes_hex=params_bytes.hex(),
         R=-1,  # placeholder (filled by caller after applying to test)
         C=-1,  # placeholder
-        verified_train_ids=[],  # placeholder (filled by caller)
+        verified_train_ids=[tid for tid, _, _ in train_pairs],  # CMR-C: ALL training IDs
         extras=extras,
         height_fit=None,  # TODO WO-02Z: add per-axis proof tables in future iteration
         width_fit=None,  # TODO WO-02Z: add per-axis proof tables in future iteration
