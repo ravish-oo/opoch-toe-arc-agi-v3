@@ -560,11 +560,11 @@ def solve_task(
                 # Update shape if it was contradictory
                 if shape_contradictory:
                     # Robust shape reader: try all possible keys
-                    shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
-                    if not shape or len(shape) != 2:
+                    output_shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                    if not output_shape or len(output_shape) != 2:
                         engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
                         continue
-                    R_star, C_star = shape
+                    R_star, C_star = output_shape
                     sections["shape"]["R_star"] = R_star
                     sections["shape"]["C_star"] = C_star
                     sections["shape"]["shape_source"] = f"engine:{engine_name}"
@@ -640,11 +640,11 @@ def solve_task(
                         # Update shape if it was contradictory
                         if shape_contradictory:
                             # Robust shape reader: try all possible keys
-                            shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
-                            if not shape or len(shape) != 2:
+                            output_shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                            if not output_shape or len(output_shape) != 2:
                                 engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
                                 continue
-                            R_star, C_star = shape
+                            R_star, C_star = output_shape
                             sections["shape"]["R_star"] = R_star
                             sections["shape"]["C_star"] = C_star
                             sections["shape"]["shape_source"] = f"engine:{engine_name}"
@@ -741,11 +741,11 @@ def solve_task(
                         # Update shape if it was contradictory
                         if shape_contradictory:
                             # Robust shape reader: try all possible keys
-                            shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
-                            if not shape or len(shape) != 2:
+                            output_shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                            if not output_shape or len(output_shape) != 2:
                                 engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
                                 continue
-                            R_star, C_star = shape
+                            R_star, C_star = output_shape
                             sections["shape"]["R_star"] = R_star
                             sections["shape"]["C_star"] = C_star
                             sections["shape"]["shape_source"] = f"engine:{engine_name}"
@@ -841,11 +841,11 @@ def solve_task(
                         # Update shape if it was contradictory
                         if shape_contradictory:
                             # Robust shape reader: try all possible keys
-                            shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
-                            if not shape or len(shape) != 2:
+                            output_shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                            if not output_shape or len(output_shape) != 2:
                                 engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
                                 continue
-                            R_star, C_star = shape
+                            R_star, C_star = output_shape
                             sections["shape"]["R_star"] = R_star
                             sections["shape"]["C_star"] = C_star
                             sections["shape"]["shape_source"] = f"engine:{engine_name}"
@@ -933,11 +933,11 @@ def solve_task(
                     # Update shape if it was contradictory
                     if shape_contradictory:
                         # Robust shape reader: try all possible keys
-                        shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
-                        if not shape or len(shape) != 2:
+                        output_shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                        if not output_shape or len(output_shape) != 2:
                             engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
                             continue
-                        R_star, C_star = shape
+                        R_star, C_star = output_shape
                         sections["shape"]["R_star"] = R_star
                         sections["shape"]["C_star"] = C_star
                         sections["shape"]["shape_source"] = f"engine:{engine_name}"
@@ -1017,11 +1017,11 @@ def solve_task(
                     # Update shape if it was contradictory
                     if shape_contradictory:
                         # Robust shape reader: try all possible keys
-                        shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
-                        if not shape or len(shape) != 2:
+                        output_shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                        if not output_shape or len(output_shape) != 2:
                             engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
                             continue
-                        R_star, C_star = shape
+                        R_star, C_star = output_shape
                         sections["shape"]["R_star"] = R_star
                         sections["shape"]["C_star"] = C_star
                         sections["shape"]["shape_source"] = f"engine:{engine_name}"
@@ -1112,11 +1112,11 @@ def solve_task(
                     # Update shape if it was contradictory
                     if shape_contradictory:
                         # Robust shape reader: try both "final_shape" and "output_shape" (migration)
-                        shape = apply_rc.get("final_shape") or apply_rc.get("output_shape")
-                        if not shape or len(shape) != 2:
+                        output_shape = apply_rc.get("final_shape") or apply_rc.get("output_shape")
+                        if not output_shape or len(output_shape) != 2:
                             engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
                             continue
-                        R_star, C_star = shape
+                        R_star, C_star = output_shape
                         sections["shape"]["R_star"] = R_star
                         sections["shape"]["C_star"] = C_star
                         sections["shape"]["shape_source"] = f"engine:{engine_name}"
@@ -1217,11 +1217,11 @@ def solve_task(
                     # Update shape if it was contradictory
                     if shape_contradictory:
                         # Robust shape reader: try both "final_shape" and "output_shape" (migration)
-                        shape = apply_rc.get("final_shape") or apply_rc.get("output_shape")
-                        if not shape or len(shape) != 2:
+                        output_shape = apply_rc.get("final_shape") or apply_rc.get("output_shape")
+                        if not output_shape or len(output_shape) != 2:
                             engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
                             continue
-                        R_star, C_star = shape
+                        R_star, C_star = output_shape
                         sections["shape"]["R_star"] = R_star
                         sections["shape"]["C_star"] = C_star
                         sections["shape"]["shape_source"] = f"engine:{engine_name}"
