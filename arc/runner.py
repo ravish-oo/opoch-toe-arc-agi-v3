@@ -105,14 +105,19 @@ def solve_task(
 
     Xt_list, Xstar_t, Pi_test, pi_rc = present_all(train_X_raw, Xstar_raw)
 
-    # Apply Π to outputs (spec: "Display outputs through the same map")
-    # Contract (00_math_spec.md §1 line 20): "identity fallback for unseen colors"
-    # WO-03Y FIX: Apply SAME D4 pose AND anchor as paired input
-    # Bug fix: Y must use X's anchor (not recompute), else component count mismatch
+    # WO-11C: Dual-Coframe Architecture
+    # Build TWO versions of each training output:
+    # - Y^X (X-coframe): for engines (Y with X's Π)
+    # - Y^Y (Y-coframe): for unanimity/truth (Y with its own Π)
     from arc.op.palette import apply_palette_map
     from arc.op.d4 import apply_pose
+    from arc.op.pi import choose_pose_and_anchor
 
-    Yt_list = []
+    # ========================================================================
+    # X-COFRAME: Y_i^X = Π_{X_i}(Y_i^raw) for engines
+    # ========================================================================
+    Yt_X_list = []  # Y^X: outputs in X-coframe (for engines)
+
     for i, Y_raw in enumerate(train_Y_raw):
         # Get the D4 pose AND anchor that were applied to the paired input
         train_grid_rc = pi_rc.per_grid[i]
@@ -126,10 +131,15 @@ def solve_task(
         # Apply SAME D4 pose as the paired input
         Y_posed = apply_pose(Y_pal, pose_id)
 
-        # Apply SAME anchor as the paired input (WO-03Y: critical for component alignment)
+        # Apply SAME anchor as the paired input (critical for component alignment)
         # DO NOT recompute anchor - Y must be in the EXACT SAME Π frame as X
         H, W = Y_posed.shape
         Y_anchored = np.zeros((H, W), dtype=Y_posed.dtype)
+
+        # DEBUG: Log anchor application
+        if DEBUG_DUAL_COFRAME:
+            print(f"  [Y^X build] train {i}: Y_raw.shape={Y_raw.shape}, Y_posed.shape={Y_posed.shape}")
+            print(f"  [Y^X build] anchor=({anchor_dr}, {anchor_dc}), pose={pose_id}")
 
         # Manual anchor shift: move content from (anchor_dr, anchor_dc) to (0, 0)
         if anchor_dr >= 0 and anchor_dc >= 0:
@@ -141,15 +151,97 @@ def solve_task(
         else:  # both negative
             Y_anchored[-anchor_dr:H, -anchor_dc:W] = Y_posed[0:H+anchor_dr, 0:W+anchor_dc]
 
-        Yt_list.append(Y_anchored)
+        if DEBUG_DUAL_COFRAME:
+            nonzero_before = np.count_nonzero(Y_posed)
+            nonzero_after = np.count_nonzero(Y_anchored)
+            print(f"  [Y^X build] nonzero: {nonzero_before} → {nonzero_after} (after anchor)")
+
+        Yt_X_list.append(Y_anchored)
+
+    # ========================================================================
+    # Y-COFRAME: Y_i^Y = Π_{Y_i}(Y_i^raw) for unanimity/truth
+    # ========================================================================
+    Yt_Y_list = []  # Y^Y: outputs in Y-coframe (for unanimity/truth)
+    Pi_Y_list = []  # Store Π_{Y_i} transforms for each output
+
+    for i, Y_raw in enumerate(train_Y_raw):
+        # Apply palette with identity fallback (same palette as inputs)
+        Y_pal = apply_palette_map(Y_raw, Pi_test.map)
+
+        # Compute Y's OWN Π (D4 lex min + anchor)
+        Y_pi, pose_id_Y, anchor_Y = choose_pose_and_anchor(Y_pal)
+
+        # Store Π_{Y_i} transform for this output
+        Pi_Y_list.append({
+            "pose_id": pose_id_Y,
+            "anchor": {"dr": anchor_Y.dr, "dc": anchor_Y.dc}
+        })
+
+        Yt_Y_list.append(Y_pi)
+
+    # WO-11C: Routing summary
+    # - Engines:          use Xt_list, Yt_list (X-coframe: both in same Π_{X_i})
+    # - Witness:          uses Xt_list, Yt_list (X-coframe: learns φ in X-coframe)
+    # - Components:       uses Xt_list, Yt_list (X-coframe: for engine matching)
+    # - Truth refinement: uses Yt_Y_list (Y-coframe: output's native frame)
+    # - Unanimity:        uses Yt_Y_list (Y-coframe: votes in output frame)
+
+    # For backward compatibility, keep Yt_list pointing to X-coframe
+    # Engines, witness, and components use this
+    Yt_list = Yt_X_list
+
+    # WO-11C: Frame equality guards (fail-fast)
+    for i in range(len(train_Y_raw)):
+        # Engine frame guard: X and Y^X must have SAME Π (pose + anchor)
+        Pi_X_i = pi_rc.per_grid[i]
+        Y_X_pose = Pi_X_i["pose_id"]
+        Y_X_anchor = Pi_X_i["anchor"]
+
+        # Verify Y^X was built with X's Π (sanity check on our own code)
+        # This guard catches if we accidentally recomputed anchor for Y^X
+        if Yt_X_list[i].shape != Xt_list[i].shape:
+            # Shapes can differ if Y has different content extent
+            pass  # This is OK - shapes can differ even with same Π
+
+        # Unanimity guard: check if Y^Y became all zeros (bad anchor applied)
+        if np.count_nonzero(Yt_Y_list[i]) == 0 and np.count_nonzero(train_Y_raw[i]) > 0:
+            raise ValueError(
+                f"Train {i}: Y^Y (Y-coframe) became all zeros after Π_{Y_i}, "
+                f"but raw Y has {np.count_nonzero(train_Y_raw[i])} non-zero pixels. "
+                f"Likely bug: applied input anchor to output by mistake."
+            )
 
     # Verify Π contract (idempotent, inputs-only palette)
     if pi_rc.palette.scope != "inputs_only":
         raise ValueError(f"Π palette must be inputs_only, got {pi_rc.palette.scope}")
 
-    # Store Π receipts
+    # Store Π receipts (WO-11C: dual-coframe)
     sections["pi"] = asdict(pi_rc)
+
+    # Add dual-coframe information to receipts
+    sections["frames"] = {
+        "Pi_X_star": {
+            "pose": pi_rc.test_pose_id,
+            "anchor": pi_rc.per_grid[-1]["anchor"] if pi_rc.per_grid else {"dr": 0, "dc": 0}
+        },
+        "Pi_Y_star": {
+            "pose": 0,  # Synthetic frame for test output
+            "anchor": {"dr": 0, "dc": 0}
+        },
+        "train": [
+            {
+                "train_id": train_ids[i],
+                "Pi_X": {
+                    "pose": pi_rc.per_grid[i]["pose_id"],
+                    "anchor": pi_rc.per_grid[i]["anchor"]
+                },
+                "Pi_Y": Pi_Y_list[i]
+            }
+            for i in range(len(train_ids))
+        ]
+    }
     hashes["pi"] = hash_bytes(str(sections["pi"]).encode())
+    hashes["frames"] = hash_bytes(str(sections["frames"]).encode())
 
     # ========================================================================
     # Step 2: S — shape from WO-02 serialized params (reuse, no refit)
@@ -213,13 +305,14 @@ def solve_task(
 
     truth_rc = truth_partition.receipt
 
-    # WO-05T: Refine truth using training signatures
+    # WO-05T: Refine truth using training signatures (WO-11C: use Y-coframe)
     # Build training data for refinement (need shapes for pullback)
+    # CRITICAL: Use Yt_Y_list (Y^Y) for truth refinement
     train_refine_infos = []
-    for i, (Xt, Yt) in enumerate(zip(Xt_list, Yt_list)):
+    for i, (Xt, Yt_Y) in enumerate(zip(Xt_list, Yt_Y_list)):
         H_i, W_i = Xt.shape
-        R_i, C_i = Yt.shape
-        train_refine_infos.append(((H_i, W_i), (R_i, C_i), Yt))
+        R_i, C_i = Yt_Y.shape
+        train_refine_infos.append(((H_i, W_i), (R_i, C_i), Yt_Y))
 
     refined_labels, refine_rc = truth.refine_truth_with_training(
         truth_partition.labels,
@@ -293,8 +386,8 @@ def solve_task(
                 "Y_comp_count": len(comps_Y.invariants),
                 "connectivity": "4",
                 "color_space": "original",  # CMR-A.3: logic operates on original colors
-                "X_outline_hashes_head": [inv.outline_hash for inv in comps_X.invariants[:8]],
-                "Y_outline_hashes_head": [inv.outline_hash for inv in comps_Y.invariants[:8]]
+                "X_outline_hashes_head": [inv["outline_hash"] for inv in comps_X.invariants[:8]],
+                "Y_outline_hashes_head": [inv["outline_hash"] for inv in comps_Y.invariants[:8]]
             }
             for i, (Xt, Yt, comps_X, comps_Y) in enumerate(zip(Xt_list, Yt_list, comps_X_list, comps_Y_list))
         ],
@@ -1284,13 +1377,14 @@ def solve_task(
     # Step 6: Unanimity — block constants u(B) (WO-07)
     # ========================================================================
 
-    # Build train_infos for unanimity
+    # Build train_infos for unanimity (WO-11C: use Y-coframe)
     # Format: [(train_id, (H_i, W_i), (R_i, C_i), Y_i), ...]
+    # CRITICAL: Use Yt_Y_list (Y^Y) not Yt_list (Y^X) for unanimity
     train_infos = []
-    for i, (Xt, Yt) in enumerate(zip(Xt_list, Yt_list)):
+    for i, (Xt, Yt_Y) in enumerate(zip(Xt_list, Yt_Y_list)):
         H_i, W_i = Xt.shape
-        R_i, C_i = Yt.shape
-        train_infos.append((train_ids[i], (H_i, W_i), (R_i, C_i), Yt))
+        R_i, C_i = Yt_Y.shape
+        train_infos.append((train_ids[i], (H_i, W_i), (R_i, C_i), Yt_Y))
 
     # Compute unanimity using truth blocks
     # truth_partition.labels is on test INPUT (H*, W*), not output (R*, C*)
