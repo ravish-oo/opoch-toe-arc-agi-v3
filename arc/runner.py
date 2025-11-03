@@ -136,11 +136,6 @@ def solve_task(
         H, W = Y_posed.shape
         Y_anchored = np.zeros((H, W), dtype=Y_posed.dtype)
 
-        # DEBUG: Log anchor application
-        if DEBUG_DUAL_COFRAME:
-            print(f"  [Y^X build] train {i}: Y_raw.shape={Y_raw.shape}, Y_posed.shape={Y_posed.shape}")
-            print(f"  [Y^X build] anchor=({anchor_dr}, {anchor_dc}), pose={pose_id}")
-
         # Manual anchor shift: move content from (anchor_dr, anchor_dc) to (0, 0)
         if anchor_dr >= 0 and anchor_dc >= 0:
             Y_anchored[0:H-anchor_dr, 0:W-anchor_dc] = Y_posed[anchor_dr:H, anchor_dc:W]
@@ -150,11 +145,6 @@ def solve_task(
             Y_anchored[-anchor_dr:H, 0:W-anchor_dc] = Y_posed[0:H+anchor_dr, anchor_dc:W]
         else:  # both negative
             Y_anchored[-anchor_dr:H, -anchor_dc:W] = Y_posed[0:H+anchor_dr, 0:W+anchor_dc]
-
-        if DEBUG_DUAL_COFRAME:
-            nonzero_before = np.count_nonzero(Y_posed)
-            nonzero_after = np.count_nonzero(Y_anchored)
-            print(f"  [Y^X build] nonzero: {nonzero_before} → {nonzero_after} (after anchor)")
 
         Yt_X_list.append(Y_anchored)
 
