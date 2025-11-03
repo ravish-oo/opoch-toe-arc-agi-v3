@@ -410,7 +410,7 @@ def apply_column_dict(
         "schema_id": schema_id,
         "test_squashed": test_squashed,
         "lookup": lookup,
-        "output_shape": list(final_shape),
+        "final_shape": list(final_shape),  # Standardized key (was "output_shape")
         "unseen": [],
         "scope_bits": int(S.sum()),
         "bitmap_hash": hash_bytes(A.tobytes()),

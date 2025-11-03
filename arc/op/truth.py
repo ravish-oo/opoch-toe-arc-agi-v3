@@ -888,16 +888,15 @@ def compute_truth_partition(
     uniq, counts = np.unique(labels, return_counts=True)
     block_hist = counts.tolist()
 
-    # WO-05C: Fail-fast checks for invalid truth state
-    # Check 1: Over-segmentation (per-pixel partition)
-    # Only warn for large grids (>10×10) since small grids can legitimately have per-pixel blocks
-    # due to different local tag signatures (n4_adj, parity, etc.)
-    if len(block_hist) == H * W and H * W > 100:
+    # WO-05E: Fail-fast checks for invalid truth state
+    # Check 1: Over-segmentation (spec: fail if len(block_hist) > H×W/4)
+    if len(block_hist) > (H * W) // 4:
         raise ValueError(
-            f"TRUTH_OVER_SEGMENTED: Partition has {len(block_hist)} blocks for {H}×{W} grid. "
-            f"Each pixel is its own block. This indicates tags are creating unique signatures "
-            f"for every pixel (likely including coordinates in tags). Initial partition must be "
-            f"by color only; refinement must use ONLY frozen local tags (no spatial coords)."
+            f"TRUTH_OVER_SEGMENTED: Partition has {len(block_hist)} blocks for {H}×{W} grid "
+            f"(threshold: {(H * W) // 4} blocks). Over-segmentation indicates tags are creating "
+            f"unique signatures for too many pixels (likely including coordinates in tags). "
+            f"Initial partition must be by color only; refinement must use ONLY frozen local tags "
+            f"(no spatial coords)."
         )
 
     # Check 2: Band edges must include boundaries [0, ..., H] and [0, ..., W]

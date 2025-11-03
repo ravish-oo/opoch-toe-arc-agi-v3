@@ -181,17 +181,24 @@ def solve_task(
     Yt_list = Yt_X_list
 
     # WO-11C: Frame equality guards (fail-fast)
+    # CRITICAL: Verify Yt_list is actually Yt_X_list (engine X-coframe)
+    if Yt_list is not Yt_X_list:
+        raise ValueError(
+            "FRAME_BUG: Yt_list must be Yt_X_list (X-coframe for engines). "
+            f"Got Yt_list id={id(Yt_list)}, Yt_X_list id={id(Yt_X_list)}"
+        )
+
     for i in range(len(train_Y_raw)):
         # Engine frame guard: X and Y^X must have SAME Π (pose + anchor)
+        # We constructed Y^X with X's Π, verify this happened correctly
         Pi_X_i = pi_rc.per_grid[i]
-        Y_X_pose = Pi_X_i["pose_id"]
-        Y_X_anchor = Pi_X_i["anchor"]
 
-        # Verify Y^X was built with X's Π (sanity check on our own code)
-        # This guard catches if we accidentally recomputed anchor for Y^X
-        if Yt_X_list[i].shape != Xt_list[i].shape:
-            # Shapes can differ if Y has different content extent
-            pass  # This is OK - shapes can differ even with same Π
+        # Sanity check: Y^X must be from X-coframe list
+        if Yt_list[i] is not Yt_X_list[i]:
+            raise ValueError(
+                f"FRAME_BUG train {i}: Yt_list[{i}] must be Yt_X_list[{i}] (X-coframe). "
+                "Engine must use Y presented with X's Π."
+            )
 
         # Unanimity guard: check if Y^Y became all zeros (bad anchor applied)
         if np.count_nonzero(Yt_Y_list[i]) == 0 and np.count_nonzero(train_Y_raw[i]) > 0:
@@ -478,10 +485,16 @@ def solve_task(
 
                 # Update shape if it was contradictory
                 if shape_contradictory:
-                    R_star, C_star = apply_rc["output_shape"]
+                    # Robust shape reader: try all possible keys
+                    shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                    if not shape or len(shape) != 2:
+                        engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
+                        continue
+                    R_star, C_star = shape
                     sections["shape"]["R_star"] = R_star
                     sections["shape"]["C_star"] = C_star
-                    sections["shape"]["shape_source"] = "engine"
+                    sections["shape"]["shape_source"] = f"engine:{engine_name}"
+                    sections["shape"]["extras"]["shape_source"] = f"engine:{engine_name}"
 
                 sections["engines"] = {
                     "used": engine_name,
@@ -552,10 +565,16 @@ def solve_task(
 
                         # Update shape if it was contradictory
                         if shape_contradictory:
-                            R_star, C_star = apply_rc["output_shape"]
+                            # Robust shape reader: try all possible keys
+                            shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                            if not shape or len(shape) != 2:
+                                engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
+                                continue
+                            R_star, C_star = shape
                             sections["shape"]["R_star"] = R_star
                             sections["shape"]["C_star"] = C_star
-                            sections["shape"]["shape_source"] = "engine"
+                            sections["shape"]["shape_source"] = f"engine:{engine_name}"
+                            sections["shape"]["extras"]["shape_source"] = f"engine:{engine_name}"
 
                         sections["engines"] = {
                             "used": engine_name,
@@ -647,10 +666,16 @@ def solve_task(
 
                         # Update shape if it was contradictory
                         if shape_contradictory:
-                            R_star, C_star = apply_rc["output_shape"]
+                            # Robust shape reader: try all possible keys
+                            shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                            if not shape or len(shape) != 2:
+                                engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
+                                continue
+                            R_star, C_star = shape
                             sections["shape"]["R_star"] = R_star
                             sections["shape"]["C_star"] = C_star
-                            sections["shape"]["shape_source"] = "engine"
+                            sections["shape"]["shape_source"] = f"engine:{engine_name}"
+                            sections["shape"]["extras"]["shape_source"] = f"engine:{engine_name}"
 
                         sections["engines"] = {
                             "used": engine_name,
@@ -741,10 +766,16 @@ def solve_task(
 
                         # Update shape if it was contradictory
                         if shape_contradictory:
-                            R_star, C_star = apply_rc["output_shape"]
+                            # Robust shape reader: try all possible keys
+                            shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                            if not shape or len(shape) != 2:
+                                engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
+                                continue
+                            R_star, C_star = shape
                             sections["shape"]["R_star"] = R_star
                             sections["shape"]["C_star"] = C_star
-                            sections["shape"]["shape_source"] = "engine"
+                            sections["shape"]["shape_source"] = f"engine:{engine_name}"
+                            sections["shape"]["extras"]["shape_source"] = f"engine:{engine_name}"
 
                         sections["engines"] = {
                             "used": engine_name,
@@ -827,10 +858,16 @@ def solve_task(
 
                     # Update shape if it was contradictory
                     if shape_contradictory:
-                        R_star, C_star = apply_rc["output_shape"]
+                        # Robust shape reader: try all possible keys
+                        shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                        if not shape or len(shape) != 2:
+                            engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
+                            continue
+                        R_star, C_star = shape
                         sections["shape"]["R_star"] = R_star
                         sections["shape"]["C_star"] = C_star
-                        sections["shape"]["shape_source"] = "engine"
+                        sections["shape"]["shape_source"] = f"engine:{engine_name}"
+                        sections["shape"]["extras"]["shape_source"] = f"engine:{engine_name}"
 
                     sections["engines"] = {
                         "used": engine_name,
@@ -905,10 +942,16 @@ def solve_task(
 
                     # Update shape if it was contradictory
                     if shape_contradictory:
-                        R_star, C_star = apply_rc["shape"]
+                        # Robust shape reader: try all possible keys
+                        shape = apply_rc.get("final_shape") or apply_rc.get("output_shape") or apply_rc.get("shape")
+                        if not shape or len(shape) != 2:
+                            engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
+                            continue
+                        R_star, C_star = shape
                         sections["shape"]["R_star"] = R_star
                         sections["shape"]["C_star"] = C_star
-                        sections["shape"]["shape_source"] = "engine"
+                        sections["shape"]["shape_source"] = f"engine:{engine_name}"
+                        sections["shape"]["extras"]["shape_source"] = f"engine:{engine_name}"
 
                     sections["engines"] = {
                         "used": engine_name,
@@ -947,12 +990,34 @@ def solve_task(
                 engine_trials.append(trial)
 
         elif engine_name == "column_dict":
-            # Fit column_dict engine
-            fit_rc = families.fit_column_dict(Xt_list, Yt_list)
+            try:
+                # Fit column_dict engine
+                fit_rc = families.fit_column_dict(Xt_list, Yt_list)
 
-            if fit_rc.ok:
+                if not fit_rc.ok:
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": False,
+                        "apply_ok": None,
+                        "succeeded": False,
+                        "reason": "fit_failed"
+                    })
+                    continue
+
                 # Apply to test (now returns native admits)
                 A_engine, S_engine, apply_rc = families.apply_column_dict(Xstar_t, fit_rc, C)
+            except Exception as e:
+                engine_trials.append({
+                    "engine": engine_name,
+                    "fit_ok": None,
+                    "apply_ok": None,
+                    "succeeded": False,
+                    "reason": f"exception:{e.__class__.__name__}",
+                    "trace": str(e)
+                })
+                continue
+
+            if fit_rc.ok:
 
                 if not apply_rc.get("error"):
                     # Engine succeeded - store native admits
@@ -972,10 +1037,16 @@ def solve_task(
 
                     # Update shape if it was contradictory
                     if shape_contradictory:
-                        R_star, C_star = apply_rc.final_shape
+                        # Robust shape reader: try both "final_shape" and "output_shape" (migration)
+                        shape = apply_rc.get("final_shape") or apply_rc.get("output_shape")
+                        if not shape or len(shape) != 2:
+                            engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
+                            continue
+                        R_star, C_star = shape
                         sections["shape"]["R_star"] = R_star
                         sections["shape"]["C_star"] = C_star
-                        sections["shape"]["shape_source"] = "engine"
+                        sections["shape"]["shape_source"] = f"engine:{engine_name}"
+                        sections["shape"]["extras"]["shape_source"] = f"engine:{engine_name}"
 
                     sections["engines"] = {
                         "used": engine_name,
@@ -1004,29 +1075,50 @@ def solve_task(
                 })
 
         elif engine_name == "macro_tiling":
-            # Fit macro_tiling engine
-            # Need truth receipts for each training
-            truth_list = []
-            for Xt in Xt_list:
-                truth_t = truth.compute_truth_partition(Xt)
-                if truth_t is None:
-                    # Skip if truth computation failed
-                    truth_list = None
-                    break
-                truth_list.append(truth_t.receipt)
+            try:
+                # Fit macro_tiling engine
+                # Need truth receipts for each training
+                truth_list = []
+                for Xt in Xt_list:
+                    truth_t = truth.compute_truth_partition(Xt)
+                    if truth_t is None:
+                        # Skip if truth computation failed
+                        truth_list = None
+                        break
+                    truth_list.append(truth_t.receipt)
 
-            if truth_list is None:
-                # Can't fit macro-tiling without truth
+                if truth_list is None:
+                    # Can't fit macro-tiling without truth
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": None,
+                        "apply_ok": None,
+                        "succeeded": False,
+                        "reason": "truth_failed"
+                    })
+                    continue
+
+                fit_rc = families.fit_macro_tiling(Xt_list, Yt_list, truth_list)
+
+                if not fit_rc.ok:
+                    engine_trials.append({
+                        "engine": engine_name,
+                        "fit_ok": False,
+                        "apply_ok": None,
+                        "succeeded": False,
+                        "reason": "fit_failed"
+                    })
+                    continue
+            except Exception as e:
                 engine_trials.append({
                     "engine": engine_name,
                     "fit_ok": None,
                     "apply_ok": None,
                     "succeeded": False,
-                    "reason": "truth_failed"
+                    "reason": f"exception:{e.__class__.__name__}",
+                    "trace": str(e)
                 })
                 continue
-
-            fit_rc = families.fit_macro_tiling(Xt_list, Yt_list, truth_list)
 
             if fit_rc.ok:
                 # Apply to test (needs test truth receipt)
@@ -1050,10 +1142,16 @@ def solve_task(
 
                     # Update shape if it was contradictory
                     if shape_contradictory:
-                        R_star, C_star = tuple(apply_rc["final_shape"])
+                        # Robust shape reader: try both "final_shape" and "output_shape" (migration)
+                        shape = apply_rc.get("final_shape") or apply_rc.get("output_shape")
+                        if not shape or len(shape) != 2:
+                            engine_trials[-1]["reason"] = "no_shape_in_apply_rc"
+                            continue
+                        R_star, C_star = shape
                         sections["shape"]["R_star"] = R_star
                         sections["shape"]["C_star"] = C_star
-                        sections["shape"]["shape_source"] = "engine"
+                        sections["shape"]["shape_source"] = f"engine:{engine_name}"
+                        sections["shape"]["extras"]["shape_source"] = f"engine:{engine_name}"
 
                     sections["engines"] = {
                         "used": engine_name,
