@@ -65,6 +65,13 @@ def anchor_to_origin(G: np.ndarray) -> tuple[np.ndarray, AnchorRc]:
     # Before (BUGGY): out = G[rmin:, cmin:].copy()  # ❌ crops, changes shape
     # After (CORRECT): shift without changing H×W
     H, W = G.shape
+
+    # WO-11G: Bounds check before slicing
+    if rmin < 0 or cmin < 0 or rmin >= H or cmin >= W:
+        raise RuntimeError(
+            f"anchor_oob: bbox_min=({rmin},{cmin}) vs grid=({H},{W})"
+        )
+
     out = np.zeros_like(G)  # Same shape as input
     out[0 : H - rmin, 0 : W - cmin] = G[rmin:H, cmin:W]  # Shift content
 
@@ -98,6 +105,13 @@ def unanchor_from_origin(G: np.ndarray, anchor: AnchorRc) -> np.ndarray:
     # Before (OLD): expanded canvas (H+dr, W+dc) - incompatible with non-shrinking anchor
     # After (CORRECT): shift within same H×W
     H, W = G.shape
+
+    # WO-11G: Bounds check before slicing
+    if dr < 0 or dc < 0 or dr >= H or dc >= W:
+        raise RuntimeError(
+            f"unanchor_oob: anchor=({dr},{dc}) vs grid=({H},{W})"
+        )
+
     out = np.zeros_like(G)  # Same shape as input
 
     # Shift content from [0:H-dr, 0:W-dc] back to [dr:H, dc:W]

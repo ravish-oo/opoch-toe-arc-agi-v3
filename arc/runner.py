@@ -26,6 +26,40 @@ from arc.op.receipts import ShapeRc
 from arc.op.hash import hash_bytes
 
 
+def _assert_admit_shape(name: str, A: np.ndarray, S: np.ndarray, R: int, C: int):
+    """
+    Assert admit layer has correct shape (WO-11G).
+
+    Contract:
+    - A must be (R, C, k) where k is any depth
+    - S must be (R, C)
+    - A.dtype must be uint64
+
+    Raises:
+        RuntimeError: if shape or dtype mismatch
+    """
+    if A is None or S is None:
+        return
+
+    # Check A shape
+    if A.shape[:2] != (R, C):
+        raise RuntimeError(
+            f"admit_shape_mismatch:{name}:{A.shape[:2]} != {(R,C)}"
+        )
+
+    # Check S shape
+    if S.shape != (R, C):
+        raise RuntimeError(
+            f"scope_shape_mismatch:{name}:{S.shape} != {(R,C)}"
+        )
+
+    # Check dtype
+    if A.dtype != np.uint64:
+        raise RuntimeError(
+            f"admit_dtype:{name}:{A.dtype} != uint64"
+        )
+
+
 def env_fingerprint() -> Dict[str, str]:
     """
     Environment fingerprint for determinism checks.
@@ -103,7 +137,15 @@ def solve_task(
     # Returns: train_presented, test_presented, transform, receipt
     from arc.op.pi import present_all
 
-    Xt_list, Xstar_t, Pi_test, pi_rc = present_all(train_X_raw, Xstar_raw)
+    try:
+        Xt_list, Xstar_t, Pi_test, pi_rc = present_all(train_X_raw, Xstar_raw)
+    except (RuntimeError, IndexError) as e:
+        sections.setdefault("errors", []).append({
+            "where": "present_all",
+            "stage": "input_presentation",
+            "error": str(e)
+        })
+        raise
 
     # WO-11C: Dual-Coframe Architecture
     # Build TWO versions of each training output:
@@ -119,34 +161,42 @@ def solve_task(
     Yt_X_list = []  # Y^X: outputs in X-coframe (for engines)
 
     for i, Y_raw in enumerate(train_Y_raw):
-        # Get the D4 pose AND anchor that were applied to the paired input
-        train_grid_rc = pi_rc.per_grid[i]
-        pose_id = train_grid_rc["pose_id"]
-        anchor_dr = train_grid_rc["anchor"]["dr"]
-        anchor_dc = train_grid_rc["anchor"]["dc"]
+        try:
+            # Get the D4 pose AND anchor that were applied to the paired input
+            train_grid_rc = pi_rc.per_grid[i]
+            pose_id = train_grid_rc["pose_id"]
+            anchor_dr = train_grid_rc["anchor"]["dr"]
+            anchor_dc = train_grid_rc["anchor"]["dc"]
 
-        # Apply palette with identity fallback (unmapped colors → themselves)
-        Y_pal = apply_palette_map(Y_raw, Pi_test.map)
+            # Apply palette with identity fallback (unmapped colors → themselves)
+            Y_pal = apply_palette_map(Y_raw, Pi_test.map)
 
-        # Apply SAME D4 pose as the paired input
-        Y_posed = apply_pose(Y_pal, pose_id)
+            # Apply SAME D4 pose as the paired input
+            Y_posed = apply_pose(Y_pal, pose_id)
 
-        # Apply SAME anchor as the paired input (critical for component alignment)
-        # DO NOT recompute anchor - Y must be in the EXACT SAME Π frame as X
-        H, W = Y_posed.shape
-        Y_anchored = np.zeros((H, W), dtype=Y_posed.dtype)
+            # Apply SAME anchor as the paired input (critical for component alignment)
+            # DO NOT recompute anchor - Y must be in the EXACT SAME Π frame as X
+            H, W = Y_posed.shape
+            Y_anchored = np.zeros((H, W), dtype=Y_posed.dtype)
 
-        # Manual anchor shift: move content from (anchor_dr, anchor_dc) to (0, 0)
-        if anchor_dr >= 0 and anchor_dc >= 0:
-            Y_anchored[0:H-anchor_dr, 0:W-anchor_dc] = Y_posed[anchor_dr:H, anchor_dc:W]
-        elif anchor_dr >= 0 and anchor_dc < 0:
-            Y_anchored[0:H-anchor_dr, -anchor_dc:W] = Y_posed[anchor_dr:H, 0:W+anchor_dc]
-        elif anchor_dr < 0 and anchor_dc >= 0:
-            Y_anchored[-anchor_dr:H, 0:W-anchor_dc] = Y_posed[0:H+anchor_dr, anchor_dc:W]
-        else:  # both negative
-            Y_anchored[-anchor_dr:H, -anchor_dc:W] = Y_posed[0:H+anchor_dr, 0:W+anchor_dc]
+            # Manual anchor shift: move content from (anchor_dr, anchor_dc) to (0, 0)
+            if anchor_dr >= 0 and anchor_dc >= 0:
+                Y_anchored[0:H-anchor_dr, 0:W-anchor_dc] = Y_posed[anchor_dr:H, anchor_dc:W]
+            elif anchor_dr >= 0 and anchor_dc < 0:
+                Y_anchored[0:H-anchor_dr, -anchor_dc:W] = Y_posed[anchor_dr:H, 0:W+anchor_dc]
+            elif anchor_dr < 0 and anchor_dc >= 0:
+                Y_anchored[-anchor_dr:H, 0:W-anchor_dc] = Y_posed[0:H+anchor_dr, anchor_dc:W]
+            else:  # both negative
+                Y_anchored[-anchor_dr:H, -anchor_dc:W] = Y_posed[0:H+anchor_dr, 0:W+anchor_dc]
 
-        Yt_X_list.append(Y_anchored)
+            Yt_X_list.append(Y_anchored)
+        except (RuntimeError, IndexError) as e:
+            sections.setdefault("errors", []).append({
+                "where": "x_coframe_presentation",
+                "train_id": i,
+                "error": str(e)
+            })
+            raise
 
     # ========================================================================
     # Y-COFRAME: Y_i^Y = Π_{Y_i}(Y_i^raw) for unanimity/truth
@@ -155,19 +205,27 @@ def solve_task(
     Pi_Y_list = []  # Store Π_{Y_i} transforms for each output
 
     for i, Y_raw in enumerate(train_Y_raw):
-        # Apply palette with identity fallback (same palette as inputs)
-        Y_pal = apply_palette_map(Y_raw, Pi_test.map)
+        try:
+            # Apply palette with identity fallback (same palette as inputs)
+            Y_pal = apply_palette_map(Y_raw, Pi_test.map)
 
-        # Compute Y's OWN Π (D4 lex min + anchor)
-        Y_pi, pose_id_Y, anchor_Y = choose_pose_and_anchor(Y_pal)
+            # Compute Y's OWN Π (D4 lex min + anchor)
+            Y_pi, pose_id_Y, anchor_Y = choose_pose_and_anchor(Y_pal)
 
-        # Store Π_{Y_i} transform for this output
-        Pi_Y_list.append({
-            "pose_id": pose_id_Y,
-            "anchor": {"dr": anchor_Y.dr, "dc": anchor_Y.dc}
-        })
+            # Store Π_{Y_i} transform for this output
+            Pi_Y_list.append({
+                "pose_id": pose_id_Y,
+                "anchor": {"dr": anchor_Y.dr, "dc": anchor_Y.dc}
+            })
 
-        Yt_Y_list.append(Y_pi)
+            Yt_Y_list.append(Y_pi)
+        except (RuntimeError, IndexError) as e:
+            sections.setdefault("errors", []).append({
+                "where": "y_coframe_presentation",
+                "train_id": i,
+                "error": str(e)
+            })
+            raise
 
     # WO-11C: Routing summary
     # - Engines:          use Xt_list, Yt_list (X-coframe: both in same Π_{X_i})
@@ -362,14 +420,30 @@ def solve_task(
     # Extract components from all training grids and test grid
     comps_X_list = []
     comps_Y_list = []
-    for Xt, Yt in zip(Xt_list, Yt_list):
-        _, comps_X = components.cc4_by_color(Xt)
-        _, comps_Y = components.cc4_by_color(Yt)
-        comps_X_list.append(comps_X)
-        comps_Y_list.append(comps_Y)
+    for i, (Xt, Yt) in enumerate(zip(Xt_list, Yt_list)):
+        try:
+            _, comps_X = components.cc4_by_color(Xt)
+            _, comps_Y = components.cc4_by_color(Yt)
+            comps_X_list.append(comps_X)
+            comps_Y_list.append(comps_Y)
+        except IndexError as e:
+            sections.setdefault("errors", []).append({
+                "where": "components.cc4_by_color",
+                "train_id": i,
+                "error": str(e)
+            })
+            raise
 
     # Test components
-    _, comps_Xstar = components.cc4_by_color(Xstar_t)
+    try:
+        _, comps_Xstar = components.cc4_by_color(Xstar_t)
+    except IndexError as e:
+        sections.setdefault("errors", []).append({
+            "where": "components.cc4_by_color",
+            "train_id": "test",
+            "error": str(e)
+        })
+        raise
 
     # WO-03Y: Per-training component counts for debugging alignment issues
     sections["components"] = {
@@ -1352,8 +1426,16 @@ def solve_task(
         sigma_lehmer = sigma_law.lehmer if sigma_law else []
 
         # Count components in test input
-        test_masks_by_comp, _ = components.cc4_by_color(Xstar_t)
-        component_count_before = len(test_masks_by_comp)
+        try:
+            test_masks_by_comp, _ = components.cc4_by_color(Xstar_t)
+            component_count_before = len(test_masks_by_comp)
+        except IndexError as e:
+            sections.setdefault("errors", []).append({
+                "where": "components.cc4_by_color",
+                "context": "sigma_debug",
+                "error": str(e)
+            })
+            raise
         component_count_after = component_count_before  # Neutral assumption (can't compute without applying law)
 
         # Build Candidate
@@ -1408,7 +1490,15 @@ def solve_task(
     # Build component masks for test grid (needed by build_free_copy_mask)
     # comp_masks format: [(mask, r0, c0), ...] where (r0, c0) is bbox top-left
     comp_masks_test = []
-    test_masks_by_comp, _ = components.cc4_by_color(Xstar_t)
+    try:
+        test_masks_by_comp, _ = components.cc4_by_color(Xstar_t)
+    except IndexError as e:
+        sections.setdefault("errors", []).append({
+            "where": "components.cc4_by_color",
+            "context": "copy_layer",
+            "error": str(e)
+        })
+        raise
 
     for mask in test_masks_by_comp:
         # Extract bbox top-left corner
@@ -1590,6 +1680,18 @@ def solve_task(
             {"blocks": []},
             C
         )
+
+    # WO-11G: Validate all admit shapes before propagation
+    try:
+        _assert_admit_shape("witness", A_w, S_w, R_star, C_star)
+        _assert_admit_shape("engine", A_e, S_e, R_star, C_star)
+        _assert_admit_shape("unanimity", A_u, S_u, R_star, C_star)
+    except Exception as e:
+        sections.setdefault("errors", []).append({
+            "where": "admit_shape_gate",
+            "error": str(e)
+        })
+        raise
 
     # Propagate to fixed point with scope-gated intersection
     layers = [(A_w, S_w, "witness"), (A_e, S_e, "engine"), (A_u, S_u, "unanimity")]

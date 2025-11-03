@@ -99,6 +99,31 @@ def _outline_hash(B: np.ndarray) -> str:
     return hash_bytes(min_bytes)
 
 
+def _safe_slice(G: np.ndarray, r0: int, c0: int, r1: int, c1: int) -> np.ndarray:
+    """
+    Safe bbox slicing with bounds checks (WO-11G).
+
+    Raises IndexError with precise message if bbox is out of bounds.
+
+    Args:
+        G: grid to slice
+        r0, c0: top-left (inclusive)
+        r1, c1: bottom-right (exclusive)
+
+    Returns:
+        G[r0:r1, c0:c1]
+
+    Raises:
+        IndexError: if bbox out of bounds
+    """
+    H, W = G.shape
+    if r0 < 0 or c0 < 0 or r1 > H or c1 > W:
+        raise IndexError(
+            f"bbox_oob: req=({r0}:{r1},{c0}:{c1}) vs grid=({H},{W})"
+        )
+    return G[r0:r1, c0:c1]
+
+
 def _perimeter4(B: np.ndarray) -> int:
     """
     Compute 4-connected perimeter.
@@ -260,8 +285,9 @@ def cc4_by_color(G: np.ndarray) -> Tuple[List[np.ndarray], ComponentsRc]:
             r0, r1 = int(rows.min()), int(rows.max()) + 1
             c0, c1 = int(cols.min()), int(cols.max()) + 1
 
-            # Extract bbox mask (relative to bbox)
-            bbox_mask = (L[r0:r1, c0:c1] == label_id)
+            # Extract bbox mask with bounds check (WO-11G)
+            bbox_slice = _safe_slice(L, r0, c0, r1, c1)
+            bbox_mask = (bbox_slice == label_id)
 
             # Compute invariants
             area = int(bbox_mask.sum())
